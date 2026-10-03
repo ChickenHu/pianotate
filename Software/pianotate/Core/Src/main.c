@@ -20,16 +20,14 @@
 #include "main.h"
 #include "dma.h"
 #include "i2c.h"
-#include "stm32f103xb.h"
-#include "stm32f1xx_hal.h"
-#include "stm32f1xx_hal_gpio.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "BSP/oled.h"
+#include "BSP/timer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,8 +95,29 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM2_Init();
   MX_USART1_UART_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_Base_Start_IT(&htim4);
+  OLED_Init();
+  static uint8_t sendBuffer1[129] = {0x40};
+  for(int i=0;i<128;i++){
+    sendBuffer1[i+1] = (i&0x01)?0xAA:0x55;
+  }
+  static uint8_t sendBuffer2[129] = {0x40};
+  for(int i=0;i<128;i++){
+    sendBuffer2[i+1] = (i&0x01)?0x55:0xAA;
+  }
+  uint8_t clearBuffer[129] = {0x40};
+  for(int i=0;i<128;i++){
+    clearBuffer[i+1] =0xFF;
+  }
+  for (uint8_t page = 4; page < 8; page++) {
+    OLED_SendCmd(0xB0 + page);
+    OLED_SendCmd(0x00);
+    OLED_SendCmd(0x10);
+    OLED_Send(clearBuffer, sizeof(clearBuffer));
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -106,8 +125,18 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    
+
     /* USER CODE BEGIN 3 */
+    if((Timer%16)==0){
+      if((Timer>>4)%2){
+        OLED_FreshFrame(sendBuffer1);
+        // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+      }
+      else{
+        OLED_FreshFrame(sendBuffer2);
+        // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+      }
+    }
   }
   /* USER CODE END 3 */
 }
