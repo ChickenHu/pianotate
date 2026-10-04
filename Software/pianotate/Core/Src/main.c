@@ -28,6 +28,10 @@
 /* USER CODE BEGIN Includes */
 #include "BSP/oled.h"
 #include "BSP/timer.h"
+#include "App/animation.h"
+#include "App/music.h"
+#include "App/state.h"
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -100,24 +104,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim4);
   OLED_Init();
-  static uint8_t sendBuffer1[129] = {0x40};
-  for(int i=0;i<128;i++){
-    sendBuffer1[i+1] = (i&0x01)?0xAA:0x55;
-  }
-  static uint8_t sendBuffer2[129] = {0x40};
-  for(int i=0;i<128;i++){
-    sendBuffer2[i+1] = (i&0x01)?0x55:0xAA;
-  }
-  uint8_t clearBuffer[129] = {0x40};
-  for(int i=0;i<128;i++){
-    clearBuffer[i+1] =0xFF;
-  }
-  for (uint8_t page = 4; page < 8; page++) {
-    OLED_SendCmd(0xB0 + page);
-    OLED_SendCmd(0x00);
-    OLED_SendCmd(0x10);
-    OLED_Send(clearBuffer, sizeof(clearBuffer));
-  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -127,16 +113,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if((Timer%16)==0){
-      if((Timer>>4)%2){
-        OLED_FreshFrame(sendBuffer1);
-        // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
-      }
-      else{
-        OLED_FreshFrame(sendBuffer2);
-        // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-      }
-    }
   }
   /* USER CODE END 3 */
 }

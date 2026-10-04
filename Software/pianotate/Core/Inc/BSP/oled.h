@@ -1,4 +1,6 @@
 #include "i2c.h"
+#include <stdlib.h>
+#include <string.h>
 
 #define OLED hi2c1
 #define OLED_ADDRESS 0x78
@@ -41,9 +43,13 @@
 #define SSD1315_CMD_COMH_DESELECT_LEVEL                     0xDB        /**< command comh deselect level */ 
 #define SSD1315_CMD_NOP                                     0xE3        /**< command nop */ 
 
+extern uint8_t FrameBuffer[129 * 8];
 
 extern void OLED_Send(uint8_t *data, uint8_t len);
 extern void OLED_Init();
 extern void OLED_SendCmd(uint8_t cmd);
 extern void OLED_Clear();
 extern void OLED_FreshFrame(uint8_t *frameBuffer);
+extern void OLED_DrawPixel(uint8_t *frameBuffer, uint8_t x, uint8_t y);
+extern void OLED_DrawLine(uint8_t *frameBuffer, uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1);
+extern void OLED_AddLayer(uint8_t *frameBuffer, uint8_t *layer);

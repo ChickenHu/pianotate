@@ -37,6 +37,10 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+    -Wno-missing-braces
+)
+
 file(GLOB_RECURSE USER_SOURCES CONFIGURE_DEPENDS
     Core/Src/BSP/*.c
     Core/Src/App/*.c
@@ -56,8 +60,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
-    Core/Inc/BSP
-    Core/Inc/App
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc/BSP
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc/App
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc/Data
 )
 
 # Add project symbols (macros)
