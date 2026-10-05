@@ -1,13 +1,16 @@
 #include "music.h"
+#include <stdint.h>
 
-SoundChannel Channel1 = {false, 0, &BEEPER1}, Channel2 = {false, 0, &BEEPER2};
+SoundChannel Channel1 = {false, 0, 0, NONE, 0, &BEEPER1},
+             Channel2 = {false, 0, 0, NONE, 0, &BEEPER2};
 
-#define TONE_COUNT  (12 * 7)
+#define TONE_COUNT (12 * 7)
 
-const ToneData_t ToneData = {
-    .bytes = {
-        #embed "../../Inc/Data/tone.bin"
-    }
+const ToneData_t ToneData = {.bytes = {
+#embed "../../Inc/Data/tone.bin"
+                             }};
+const uint8_t BadApple[456] = {
+#embed "../../Inc/Data/bad_apple.bin"
 };
 
 #define Tone (ToneData.words)
@@ -21,30 +24,82 @@ inline uint8_t Music_GetToneIndex(uint8_t note) {
 inline uint32_t Music_GetToneFreq(uint8_t note) {
   return Tone[Music_GetToneIndex(note)];
 }
-void Music_PlayNote(SoundChannel *channel, uint8_t note, uint8_t time) {
+inline uint8_t Music_GetSongNote(SongName songName, uint8_t index) {
+  switch (songName) {
+  case BADAPPLE:
+    return BadApple[index];
+  default:
+    return 0;
+  }
+}
+inline uint16_t Music_GetSongSize(SongName songName) {
+  switch (songName) {
+  case BADAPPLE:
+    return sizeof(BadApple);
+  default:
+    return 0;
+  }
+}
+inline uint16_t Music_GetSongBeat(SongName songName) {
+  switch (songName) {
+  case BADAPPLE:
+    return 60 * 1000 / 140 / 2;
+  default:
+    return 0;
+  }
+}
+void Music_PlayNote(SoundChannel *channel, uint8_t note) {
   Beeper_Set(channel->beeper, PSC, Music_GetToneFreq(note));
-  Beeper_Start(channel->beeper);
   channel->isPlaying = true;
-  channel->time = time;
 }
 inline void Music_StopNote(SoundChannel *channel) {
   Beeper_Stop(channel->beeper);
   channel->isPlaying = false;
-  channel->time = 0;
 }
 inline void Music_UpdateState() {
   if (Channel1.isPlaying) {
-    if (Channel1.time > 0) {
-      Channel1.time--;
-    } else {
-      Music_StopNote(&Channel1);
+    if (Timer >= Channel1.nextNoteTime) {
+      if (Channel1.noteIndex == Channel1.songSize - 1) {
+        Music_StopNote(&Channel1);
+        Channel1.noteIndex = 0;
+        Channel1.isPlaying = false;
+        Channel1.songName = NONE;
+        Channel1.nextNoteTime = 0;
+        Channel1.songSize = 0;
+      } else {
+        Channel1.noteIndex++;
+        Music_PlayNote(&Channel1, Music_GetSongNote(Channel1.songName,
+                                                    Channel1.noteIndex));
+        Channel1.nextNoteTime += Music_GetSongBeat(Channel1.songName);
+      }
     }
   }
   if (Channel2.isPlaying) {
-    if (Channel2.time > 0) {
-      Channel2.time--;
-    } else {
-      Music_StopNote(&Channel2);
+    if (Timer > Channel2.nextNoteTime) {
+      if (Channel2.noteIndex == Channel2.songSize - 1) {
+        Music_StopNote(&Channel2);
+        Channel2.noteIndex = 0;
+        Channel2.isPlaying = false;
+        Channel2.songName = NONE;
+        Channel2.nextNoteTime = 0;
+        Channel2.songSize = 0;
+      } else {
+        Channel2.noteIndex++;
+        Music_PlayNote(
+            &Channel2,
+            Music_GetSongNote(Channel2.songName, Channel2.noteIndex));
+        Channel2.nextNoteTime += Music_GetSongBeat(Channel1.songName);
+      }
     }
   }
+}
+void Music_Play(SongName songName) {
+  Channel1.songName = songName;
+  Channel1.songSize = Music_GetSongSize(songName);
+  Channel1.isPlaying = true;
+  Channel1.noteIndex = 0;
+  Channel1.nextNoteTime = Timer + Music_GetSongBeat(songName);
+  Music_PlayNote(&Channel1,
+                 Music_GetSongNote(Channel1.songName, Channel1.noteIndex));
+  Beeper_Start(Channel1.beeper);
 }

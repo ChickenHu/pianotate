@@ -3,3 +3,4 @@
 
 extern volatile uint32_t Timer;
 extern void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
+extern volatile bool Flag1ms;

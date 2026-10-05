@@ -20,6 +20,7 @@
 #include "main.h"
 #include "dma.h"
 #include "i2c.h"
+#include "stm32f1xx_hal.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -31,6 +32,7 @@
 #include "App/animation.h"
 #include "App/music.h"
 #include "App/state.h"
+#include "App/menu.h"
 #include <stdint.h>
 /* USER CODE END Includes */
 
@@ -102,8 +104,14 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start_IT(&htim4);
+  FourKeys_Init(4, BADAPPLE);
   OLED_Init();
+  // Animation_SetUI();  
+  Menu_Init();
+  Music_Play(BADAPPLE);
+  // HAL_Delay(100);
+  HAL_TIM_Base_Start_IT(&htim4);
+  // Menu_Test();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -113,6 +121,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    if (Flag1ms) {
+        Flag1ms = 0;
+
+        State_Update();
+    }
   }
   /* USER CODE END 3 */
 }

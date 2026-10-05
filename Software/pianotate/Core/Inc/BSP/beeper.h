@@ -1,3 +1,4 @@
+#pragma once
 #include "tim.h"
 #include <stdint.h>
 

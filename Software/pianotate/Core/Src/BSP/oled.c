@@ -1,11 +1,14 @@
 #include "BSP/oled.h"
-
-uint8_t FrameBuffer[129 * 8] = {
+#include "stm32f1xx_hal_i2c.h"
+#include <stdint.h>
+const uint8_t FreshPeriod = 30; // 刷新周期，单位为ms
+uint8_t FrameBuffer[129 * 16] = {
     0x40}; // 1 byte for control byte, 128 bytes for pixel data
-uint8_t FrameBufferPrev[129 * 8] = {
-    0x40}; // 1 byte for control byte, 128 bytes for pixel data
+uint8_t *FrameBufferPtr = FrameBuffer;
+uint8_t *FrameBufferPrevPtr =
+    &FrameBuffer[129 * 8]; // 1 byte for control byte, 128 bytes for pixel data
 void OLED_Send(uint8_t *data, uint8_t len) {
-  HAL_I2C_Master_Transmit(&OLED, OLED_ADDRESS, data, len, HAL_MAX_DELAY);
+  HAL_I2C_Master_Transmit(&OLED, OLED_ADDRESS, data, len,HAL_MAX_DELAY);
 }
 void OLED_SendCmd(uint8_t cmd) {
   static uint8_t sendBuffer[2] = {0};
@@ -58,28 +61,40 @@ void OLED_Init(void) {
   OLED_SendCmd(0x14);
 
   OLED_SendCmd(0xAF);
-  //   OLED_SendCmd(0xA5);
+  // OLED_SendCmd(0xA5);
+  for (uint8_t page = 0; page < 16; page++) {
+    memset(&FrameBuffer[page * 129], 0x00,
+           sizeof(uint8_t) * 129);  // Clear each page
+    FrameBuffer[page * 129] = 0x40; // Set control byte for each page
+  }
+  for (uint8_t page = 0; page < 8; page++) {
+    OLED_SendCmd(0xB0 + page);
+    OLED_SendCmd(0x00);
+    OLED_SendCmd(0x10);
+    OLED_Send(&FrameBufferPtr[page * 129], 129);
+  }
 }
 void OLED_Clear(void) {
-  memset(FrameBuffer, 0x00, sizeof(FrameBuffer));
+  memset(FrameBufferPtr, 0x00, sizeof(FrameBufferPtr[0]) * 129 * 8);
   for (uint8_t page = 0; page < 8; page++) {
-    FrameBuffer[page * 129] = 0x40; // Clear each page
+    FrameBufferPtr[page * 129] = 0x40; // Clear each page
   }
   // OLED_FreshFrame(FrameBuffer);
 }
-void OLED_FreshFrame(uint8_t *frameBuffer) {
+void OLED_FreshFrame() {
   for (uint8_t page = 0; page < 8; page++) {
-    if (memcmp(&frameBuffer[page * 129], &FrameBufferPrev[page * 129], 129)) {
+    if (memcmp(&FrameBufferPtr[page * 129], &FrameBufferPrevPtr[page * 129],
+               129)) {
       OLED_SendCmd(0xB0 + page);
       OLED_SendCmd(0x00);
       OLED_SendCmd(0x10);
-      OLED_Send(&frameBuffer[page * 129], 129);
+      OLED_Send(&FrameBufferPtr[page * 129], 129);
     }
-    memcpy((void *)&FrameBufferPrev[page * 129],
-           (const void *)&frameBuffer[page * 129], 129);
-    FrameBufferPrev[page * 129] =
-        0x40; // Reset control byte for next comparison
   }
+  // swap
+  uint8_t *temp = FrameBufferPtr;
+  FrameBufferPtr = FrameBufferPrevPtr;
+  FrameBufferPrevPtr = temp;
 }
 void OLED_DrawPixel(uint8_t *frameBuffer, uint8_t x, uint8_t y) {
   if (x >= 128 || y >= 64) {
@@ -118,3 +133,4 @@ void OLED_AddLayer(uint8_t *frameBuffer, uint8_t *layer) {
     frameBuffer[i] |= layer[i];
   }
 }
+void OLED_UpdateState() { OLED_FreshFrame(); }
