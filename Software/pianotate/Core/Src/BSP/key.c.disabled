@@ -6,7 +6,7 @@
 { 
   for(uint8_t i=0;i<7;i++)
     {
-      uint8_t current_pin_level==HAL_GPIO_ReadPin(key_list[i].gpio_port,key_list[i].gpio_pin);
+      uint8_t current_pin_level=HAL_GPIO_ReadPin(key_list[i].gpio_port,key_list[i].gpio_pin);
       /*判断某个引脚的高低电平*/
       if(current_pin_level==GPIO_PIN_RESET)
       {

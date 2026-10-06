@@ -6,7 +6,7 @@
 void Beeper_Set(TIM_HandleTypeDef *beeper, uint32_t prescaler, uint32_t freq) {
   beeper->Instance->PSC = prescaler;
   beeper->Instance->ARR = freq;
-  beeper->Instance->CCR1 = freq >> 2;
+  beeper->Instance->CCR1 = freq /5;
 }
 
 void Beeper_Start(TIM_HandleTypeDef *beeper) {

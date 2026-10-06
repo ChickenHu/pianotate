@@ -20,7 +20,6 @@
 #include "main.h"
 #include "dma.h"
 #include "i2c.h"
-#include "stm32f1xx_hal.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -103,15 +102,22 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-  FourKeys_Init(4, BADAPPLE);
+  FourKeys_Init(8, BADAPPLE);
   OLED_Init();
   // Animation_SetUI();  
   Menu_Init();
-  Music_Play(BADAPPLE);
+  // Music_Play(BADAPPLE);
   // HAL_Delay(100);
   HAL_TIM_Base_Start_IT(&htim4);
   // Menu_Test();
+  while (Timer<=1000) {
+  
+  }
+  if(Timer>1000){
+    StartFlag=true;
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -126,6 +132,7 @@ int main(void)
 
         State_Update();
     }
+    
   }
   /* USER CODE END 3 */
 }

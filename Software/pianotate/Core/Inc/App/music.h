@@ -6,11 +6,12 @@
 #define PSC 7
 
 typedef enum{
-    BADAPPLE,NONE
+    BADAPPLE,FISH,NONE
 } SongName;
 typedef struct {
   bool isPlaying;
-  uint8_t noteIndex;
+  bool isPWMStart;
+  uint16_t noteIndex;
   SongName songName;
   uint16_t songSize;
   uint16_t nextNoteTime;
@@ -26,9 +27,12 @@ extern const ToneData_t ToneData;
 extern SoundChannel Channel1, Channel2;
 
 extern const uint8_t BadApple[456];
+extern const uint8_t Fish[541];
+
 
 extern uint16_t Music_GetSongSize(SongName songName);
 extern uint16_t Music_GetSongBeat(SongName songName);
+extern uint8_t Music_GetSongNote(SongName songName,uint16_t index);
 extern void Music_PlayNote(SoundChannel *channel, uint8_t note);
 extern void Music_StopNote(SoundChannel *channel);
 extern void Music_UpdateState();

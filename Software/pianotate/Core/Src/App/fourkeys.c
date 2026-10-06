@@ -1,44 +1,54 @@
 #include "fourkeys.h"
+#include "animation.h"
 #include "music.h"
 #include "oled.h"
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-int32_t Speed = 4;         // 每个frame刷新时新增的Z-offset
-int32_t ZOffset = 6400;    // 当前的Z-offset
-uint8_t KeyFront[4] = {0,0,0,0}, // 每条轨道上当前最靠近低Z端的候选音符
+int32_t Speed = 4;                  // 每个frame刷新时新增的Z-offset
+int32_t ZOffset = 6400;             // 当前的Z-offset
+uint8_t KeyFront[4] = {0, 0, 0, 0}, // 每条轨道上当前最靠近低Z端的候选音符
     KeySize[4] = {0, 0, 0, 0};
-uint8_t Beat;
+uint16_t Beat;
 uint8_t NoteSize = 8;
+uint16_t Size = 0;
+bool StartFlag = false;
+bool MusicStartFlag = false;
+SongName PlayingSongName;
 typedef struct {
   int32_t startZ; // 音符的起始Z坐标
   int32_t endZ;   // 音符的结束Z坐标
 } Note;
-Note NoteBuffer[4][150] = {}; // 每条轨道上最多64个音符
-// uint8_t KeyBuffer[4];
-static uint8_t FindKeyFront(uint8_t lane, int32_t offset) {
-  uint8_t index = 0;
-  while (index < 64 && NoteBuffer[lane][index].startZ < offset) {
-    index++;
-  }
-  return index;
+Note NoteBuffer[4][150] = {}; // 每条轨道上最多150个音符
+
+static uint32_t rng_state = 0x12345678u;
+
+static inline uint8_t PRNG4(void)
+{
+    rng_state = rng_state * 1664525u + 1013904223u;
+    return (uint8_t)(rng_state >> 30);
 }
 
 void FourKeys_Init(int32_t speed, SongName songName) {
   Speed = speed;
   Beat = Music_GetSongBeat(songName);
+  PlayingSongName = songName;
   Animation_SetUI();
   uint8_t lane = 0;
-  uint16_t size = Music_GetSongSize(songName);
-  ZOffset = Beat * size * Speed / FreshPeriod;
-  for (int i = 0; i < size; i++) {
+  Size = Music_GetSongSize(songName);
+  ZOffset = Beat * Size * Speed / FreshPeriod;
+  for (int i = 0; i < Size; i++) {
     // i增加，离Zoffset越来越远，越后被显示
     NoteBuffer[lane][KeySize[lane]].startZ =
         ZOffset - Beat * i * Speed / FreshPeriod;
+    while (Music_GetSongNote(songName, i + 1) ==
+           Music_GetSongNote(songName, i)) {
+      i++;
+    }
     NoteBuffer[lane][KeySize[lane]].endZ =
-        NoteBuffer[lane][KeySize[lane]].startZ - NoteSize;
+        ZOffset - Beat * i * Speed / FreshPeriod - NoteSize;
     KeySize[lane]++;
-    lane++;
-    lane &= 0b11;
+    lane=PRNG4();
   }
   // KeyFront[lane] = FindKeyFront(lane, ZOffset);
   // memcpy(KeySize, KeyFront, 4);
@@ -47,12 +57,23 @@ void FourKeys_Init(int32_t speed, SongName songName) {
 void FourKeys_UpdateState() {
   // 判定逻辑暂时未实现
   // 显示刷新部分
-  if (ZOffset < Speed) {
+  if (!StartFlag) {
+    return;
+  }
+  if (ZOffset <= 0) {
+    StartFlag = false;
+    MusicStartFlag = false;
+    OLED_Clear();
+    OLED_AddLayer(FrameBufferPtr, UILayer);
     return;
   }
   // ZOffset是显示区域最远处的Z轴坐标
   // 判定线处为ZOffset+512
   ZOffset -= Speed;
+  if (!MusicStartFlag && ZOffset <= Beat * Size * Speed / FreshPeriod - 512) {
+    MusicStartFlag = true;
+    Music_Play(PlayingSongName);
+  }
   OLED_Clear();
   for (int lane = 0; lane < 4; lane++) {
     while (KeyFront[lane] + 1 < KeySize[lane] &&
@@ -72,9 +93,10 @@ void FourKeys_UpdateState() {
         if (index < 0) {
           break;
         }
-        OLED_DrawLine(FrameBufferPtr, projection_table[index][lane % 4].x,
-                      projection_table[index][lane % 4].y,
-                      projection_table[index][(lane + 1) % 4].x, 32);
+
+        OLED_DrawLine(FrameBufferPtr, projection_table[index][lane].x,
+                      projection_table[index][lane].y,
+                      projection_table[index][lane].x, 32);
       }
     }
   }
