@@ -18,7 +18,7 @@ void Menu_Draw(uint8_t process) { // process:0~255
   for (uint8_t i = 0; i < 32; i++) {
     OLED_DrawLine(FrameBufferPtr, 0, i + yAxis, 127, i + yAxis);
   }
-  OLED_UpdateState();
+  OLED_UpdateState(&OLED1);
 }
 
 void Menu_Test() {

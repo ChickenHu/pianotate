@@ -65,6 +65,20 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+static void OLED_Test(I2C_HandleTypeDef *bus) {
+  if (HAL_I2C_IsDeviceReady(bus, OLED_ADDRESS, 3, 100) != HAL_OK) {
+    Error_Handler();
+  }
+
+  OLED_Init(bus);
+  OLED_Clear();
+  OLED_DrawLine(FrameBufferPtr, 0, 0, 127, 0);
+  OLED_DrawLine(FrameBufferPtr, 0, 63, 127, 63);
+  OLED_DrawLine(FrameBufferPtr, 0, 0, 127, 63);
+  OLED_DrawLine(FrameBufferPtr, 127, 0, 0, 63);
+  OLED_UpdateState(bus);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -105,7 +119,9 @@ int main(void)
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
   FourKeys_Init(8, BADAPPLE);
-  OLED_Init();
+  OLED_Test(&OLED1);
+  while (1) {
+  }
   // Animation_SetUI();  
   Menu_Init();
   // Music_Play(BADAPPLE);

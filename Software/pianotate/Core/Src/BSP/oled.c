@@ -7,71 +7,74 @@ uint8_t FrameBuffer[129 * 16] = {
 uint8_t *FrameBufferPtr = FrameBuffer;
 uint8_t *FrameBufferPrevPtr =
     &FrameBuffer[129 * 8]; // 1 byte for control byte, 128 bytes for pixel data
-void OLED_Send(uint8_t *data, uint8_t len) {
-  HAL_I2C_Master_Transmit(&OLED, OLED_ADDRESS, data, len,HAL_MAX_DELAY);
+void OLED_Send(I2C_HandleTypeDef *oled, uint8_t *data, uint8_t len) {
+  HAL_I2C_Master_Transmit(oled, OLED_ADDRESS, data, len, HAL_MAX_DELAY);
 }
-void OLED_SendCmd(uint8_t cmd) {
+void OLED_SendCmd(I2C_HandleTypeDef *oled, uint8_t cmd) {
   static uint8_t sendBuffer[2] = {0};
+
+  sendBuffer[0] = 0x00;
   sendBuffer[1] = cmd;
-  OLED_Send(sendBuffer, 2);
+
+  OLED_Send(oled, sendBuffer, 2);
 }
-void OLED_Init(void) {
-  OLED_SendCmd(0xAE); /*关闭显示 display off*/
+void OLED_Init(I2C_HandleTypeDef *oled) {
+  OLED_SendCmd(oled,0xAE); /*关闭显示 display off*/
 
-  OLED_SendCmd(0x20);
-  OLED_SendCmd(0x10);
+  OLED_SendCmd(oled,0x20);
+  OLED_SendCmd(oled,0x10);
 
-  OLED_SendCmd(0xB0);
+  OLED_SendCmd(oled,0xB0);
 
-  OLED_SendCmd(0xC8);
+  OLED_SendCmd(oled,0xC8);
 
-  OLED_SendCmd(0x00);
-  OLED_SendCmd(0x10);
+  OLED_SendCmd(oled,0x00);
+  OLED_SendCmd(oled,0x10);
 
-  OLED_SendCmd(0x40);
+  OLED_SendCmd(oled,0x40);
 
-  OLED_SendCmd(0x81);
+  OLED_SendCmd(oled,0x81);
 
-  OLED_SendCmd(0xDF);
-  OLED_SendCmd(0xA1);
+  OLED_SendCmd(oled,0xDF);
+  OLED_SendCmd(oled,0xA1);
 
-  OLED_SendCmd(0xA6);
-  OLED_SendCmd(0xA8);
+  OLED_SendCmd(oled,0xA6);
+  OLED_SendCmd(oled,0xA8);
 
-  OLED_SendCmd(0x3F);
+  OLED_SendCmd(oled,0x3F);
 
-  OLED_SendCmd(0xA4);
+  OLED_SendCmd(oled,0xA4);
 
-  OLED_SendCmd(0xD3);
-  OLED_SendCmd(0x00);
+  OLED_SendCmd(oled,0xD3);
+  OLED_SendCmd(oled,0x00);
 
-  OLED_SendCmd(0xD5);
-  OLED_SendCmd(0xF0);
+  OLED_SendCmd(oled, 0xD5);
+  OLED_SendCmd(oled,0xF0);
 
-  OLED_SendCmd(0xD9);
-  OLED_SendCmd(0x22);
+  OLED_SendCmd(oled,0xD9);
+  OLED_SendCmd(oled,0x22);
 
-  OLED_SendCmd(0xDA);
-  OLED_SendCmd(0x12);
+  OLED_SendCmd(oled,0xDA);
+  OLED_SendCmd(oled,0x12);
 
-  OLED_SendCmd(0xDB);
-  OLED_SendCmd(0x20);
+  OLED_SendCmd(oled,0xDB);
+  OLED_SendCmd(oled,0x20);
 
-  OLED_SendCmd(0x8D);
-  OLED_SendCmd(0x14);
+  OLED_SendCmd(oled,0x8D);
+  OLED_SendCmd(oled,0x14);
 
-  OLED_SendCmd(0xAF);
-  // OLED_SendCmd(0xA5);
+  OLED_SendCmd(oled,0xAF);
+  // OLED_SendCmd(oled,0xA5);
   for (uint8_t page = 0; page < 16; page++) {
     memset(&FrameBuffer[page * 129], 0x00,
            sizeof(uint8_t) * 129);  // Clear each page
     FrameBuffer[page * 129] = 0x40; // Set control byte for each page
   }
   for (uint8_t page = 0; page < 8; page++) {
-    OLED_SendCmd(0xB0 + page);
-    OLED_SendCmd(0x00);
-    OLED_SendCmd(0x10);
-    OLED_Send(&FrameBufferPtr[page * 129], 129);
+    OLED_SendCmd(oled,0xB0 + page);
+    OLED_SendCmd(oled,0x00);
+    OLED_SendCmd(oled,0x10);
+    OLED_Send(oled,&FrameBufferPtr[page * 129], 129);
   }
 }
 void OLED_Clear(void) {
@@ -81,14 +84,14 @@ void OLED_Clear(void) {
   }
   // OLED_FreshFrame(FrameBuffer);
 }
-void OLED_FreshFrame() {
+void OLED_FreshFrame(I2C_HandleTypeDef *oled) {
   for (uint8_t page = 0; page < 8; page++) {
     if (memcmp(&FrameBufferPtr[page * 129], &FrameBufferPrevPtr[page * 129],
                129)) {
-      OLED_SendCmd(0xB0 + page);
-      OLED_SendCmd(0x00);
-      OLED_SendCmd(0x10);
-      OLED_Send(&FrameBufferPtr[page * 129], 129);
+      OLED_SendCmd(oled,0xB0 + page);
+      OLED_SendCmd(oled,0x00);
+      OLED_SendCmd(oled,0x10);
+      OLED_Send(oled,&FrameBufferPtr[page * 129], 129);
     }
   }
   // swap
@@ -133,4 +136,4 @@ void OLED_AddLayer(uint8_t *frameBuffer, uint8_t *layer) {
     frameBuffer[i] |= layer[i];
   }
 }
-void OLED_UpdateState() { OLED_FreshFrame(); }
+void OLED_UpdateState(I2C_HandleTypeDef *oled) { OLED_FreshFrame(oled); }

@@ -10,7 +10,7 @@ void State_Update() {
     FourKeys_UpdateState();
     // Menu_Test();
     // Menu_StateUpdate();
-    OLED_UpdateState();
+    OLED_UpdateState(&OLED1);
     // FourKeys_UpdateState();
   }
 }
