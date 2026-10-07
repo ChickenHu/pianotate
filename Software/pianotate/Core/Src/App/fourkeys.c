@@ -36,17 +36,17 @@ void FourKeys_Init(int32_t speed, SongName songName) {
   Animation_SetUI();
   uint8_t lane = 0;
   Size = Music_GetSongSize(songName);
-  ZOffset = Beat * Size * Speed / FreshPeriod;
+  ZOffset = Beat * Size * Speed / FreshPeriod/2;
   for (int i = 0; i < Size; i++) {
     // i增加，离Zoffset越来越远，越后被显示
     NoteBuffer[lane][KeySize[lane]].startZ =
-        ZOffset - Beat * i * Speed / FreshPeriod;
+        ZOffset - Beat * i * Speed / FreshPeriod/2;
     while (Music_GetSongNote(songName, i + 1) ==
            Music_GetSongNote(songName, i)) {
       i++;
     }
     NoteBuffer[lane][KeySize[lane]].endZ =
-        ZOffset - Beat * i * Speed / FreshPeriod - NoteSize;
+        ZOffset - Beat * i * Speed / FreshPeriod/2 - NoteSize;
     KeySize[lane]++;
     lane=PRNG4();
   }
@@ -63,18 +63,18 @@ void FourKeys_UpdateState() {
   if (ZOffset <= 0) {
     StartFlag = false;
     MusicStartFlag = false;
-    OLED_Clear();
-    OLED_AddLayer(FrameBufferPtr, UILayer);
+    OLED_Clear(&OLED1);
+    OLED_AddLayer(OLED1.FrameBufferPtr, UILayer);
     return;
   }
   // ZOffset是显示区域最远处的Z轴坐标
   // 判定线处为ZOffset+512
   ZOffset -= Speed;
-  if (!MusicStartFlag && ZOffset <= Beat * Size * Speed / FreshPeriod - 512) {
+  if (!MusicStartFlag && ZOffset <= Beat * Size * Speed / FreshPeriod/2 - 512) {
     MusicStartFlag = true;
     Music_Play(PlayingSongName);
   }
-  OLED_Clear();
+  OLED_Clear(&OLED1);
   for (int lane = 0; lane < 4; lane++) {
     while (KeyFront[lane] + 1 < KeySize[lane] &&
            NoteBuffer[lane][KeyFront[lane] + 1].startZ >= ZOffset) {
@@ -94,11 +94,11 @@ void FourKeys_UpdateState() {
           break;
         }
 
-        OLED_DrawLine(FrameBufferPtr, projection_table[index][lane].x,
+        OLED_DrawLine(OLED1.FrameBufferPtr, projection_table[index][lane].x,
                       projection_table[index][lane].y,
                       projection_table[index][lane].x, 32);
       }
     }
   }
-  OLED_AddLayer(FrameBufferPtr, UILayer);
+  OLED_AddLayer(OLED1.FrameBufferPtr, UILayer);
 }

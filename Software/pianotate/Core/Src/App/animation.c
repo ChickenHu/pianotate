@@ -1,4 +1,5 @@
 #include "animation.h"
+#include "oled.h"
 #include <stdint.h>
 
 //0-1 2-3是长边
@@ -36,7 +37,7 @@ void Animation_SetUI() {
                 projection_table[511 - 8][3].y);
 }
 void Animation_Test() {
-  OLED_Clear();
+  OLED_Clear(&OLED1);
   for (uint16_t size = 0; size < 8; size++) {
 
     if (projection_table_index + size >= 256 * 2) {
@@ -44,7 +45,7 @@ void Animation_Test() {
     }
     for (uint16_t i = 1; i < 4; i += 2) {
       OLED_DrawLine(
-          FrameBufferPtr,
+          OLED1.FrameBufferPtr,
           projection_table[projection_table_index + size][i % 4].x,
           projection_table[projection_table_index + size][i % 4].y,
           projection_table[projection_table_index + size][(i + 1) % 4].x,
@@ -53,7 +54,7 @@ void Animation_Test() {
   }
   projection_table_index+=4;
   projection_table_index %= 512;
-  OLED_AddLayer(FrameBufferPtr, UILayer);
+  OLED_AddLayer(OLED1.FrameBufferPtr, UILayer);
 }
 // inline uint8_t Animation_GetLUT(uint8_t state){
 //     return LUT[state];

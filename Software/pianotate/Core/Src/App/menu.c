@@ -14,11 +14,11 @@ void Menu_Init() {
 }
 void Menu_Draw(uint8_t process) { // process:0~255
   uint8_t yAxis = process >> 3;   // 上边线位置
-  OLED_Clear();
+  OLED_Clear(&OLED2);
   for (uint8_t i = 0; i < 32; i++) {
-    OLED_DrawLine(FrameBufferPtr, 0, i + yAxis, 127, i + yAxis);
+    OLED_DrawLine(OLED2.FrameBufferPtr, 0, i + yAxis, 127, i + yAxis);
   }
-  OLED_UpdateState(&OLED1);
+  // OLED_UpdateState(&OLED2);
 }
 
 void Menu_Test() {

@@ -7,12 +7,10 @@
 #define OLED_ADDRESS 0x78
 
 typedef struct {
-  const I2C_HandleTypeDef *OLED;
-  uint8_t FrameBuffer[129 *
-                      16]; // 1 byte for control byte, 128 bytes for pixel data
+  I2C_HandleTypeDef *OLED;
+  uint8_t FrameBuffer[129 * 16];
   uint8_t *FrameBufferPtr;
-  uint8_t
-      *FrameBufferPrevPtr; // 1 byte for control byte, 128 bytes for pixel data
+  uint8_t *FrameBufferPrevPtr;
 } OLED_HandleTypeDef;
 
 extern OLED_HandleTypeDef OLED1, OLED2;
