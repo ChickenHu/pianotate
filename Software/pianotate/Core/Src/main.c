@@ -32,6 +32,7 @@
 #include "App/music.h"
 #include "App/state.h"
 #include "App/menu.h"
+#include "App/fourkeys.h"
 #include <stdint.h>
 /* USER CODE END Includes */
 
@@ -65,19 +66,6 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-static void OLED_Test(I2C_HandleTypeDef *bus) {
-  if (HAL_I2C_IsDeviceReady(bus, OLED_ADDRESS, 3, 100) != HAL_OK) {
-    Error_Handler();
-  }
-
-  OLED_Init(bus);
-  OLED_Clear();
-  OLED_DrawLine(FrameBufferPtr, 0, 0, 127, 0);
-  OLED_DrawLine(FrameBufferPtr, 0, 63, 127, 63);
-  OLED_DrawLine(FrameBufferPtr, 0, 0, 127, 63);
-  OLED_DrawLine(FrameBufferPtr, 127, 0, 0, 63);
-  OLED_UpdateState(bus);
-}
 
 /* USER CODE END 0 */
 
@@ -118,18 +106,13 @@ int main(void)
   MX_TIM4_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
-  FourKeys_Init(8, BADAPPLE);
-  OLED_Test(&OLED1);
-  while (1) {
-  }
-  // Animation_SetUI();  
+  OLED_Init();
   Menu_Init();
-  // Music_Play(BADAPPLE);
-  // HAL_Delay(100);
+  FourKeys_Init(8, BADAPPLE);
   HAL_TIM_Base_Start_IT(&htim4);
-  // Menu_Test();
+  MenuState.state=1;
+  Menu_Test();
   while (Timer<=1000) {
-  
   }
   if(Timer>1000){
     StartFlag=true;
