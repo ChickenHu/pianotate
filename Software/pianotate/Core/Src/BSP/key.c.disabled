@@ -1,8 +1,16 @@
 
 /*代码思路写在了结尾，那个oled屏幕的调用函数我不会写（）*/
 #include "key.h"
-
-   int Key_Update()
+Key_HandleTypeDef key_list[7]={
+{.key_state = 0, .filter_cnt = 0, .gpio_port = GPIOA, .gpio_pin = GPIO_PIN_0, .press_flag = 0, .press_callback=NULL},
+{.key_state = 0, .filter_cnt = 0, .gpio_port = GPIOA, .gpio_pin = GPIO_PIN_1, .press_flag = 0, .press_callback=NULL},
+{.key_state = 0, .filter_cnt = 0, .gpio_port = GPIOA, .gpio_pin = GPIO_PIN_2, .press_flag = 0, .press_callback=NULL},
+{.key_state = 0, .filter_cnt = 0, .gpio_port = GPIOA, .gpio_pin = GPIO_PIN_3, .press_flag = 0, .press_callback=NULL},
+{.key_state = 0, .filter_cnt = 0, .gpio_port = GPIOA, .gpio_pin = GPIO_PIN_4, .press_flag = 0, .press_callback=NULL},
+{.key_state = 0, .filter_cnt = 0, .gpio_port = GPIOA, .gpio_pin = GPIO_PIN_5, .press_flag = 0, .press_callback=NULL},
+{.key_state = 0, .filter_cnt = 0, .gpio_port = GPIOB, .gpio_pin = GPIO_PIN_0, .press_flag = 0, .press_callback=NULL},
+};
+  void Key_Update(void)
 { 
   for(uint8_t i=0;i<7;i++)
     {
@@ -16,10 +24,10 @@
         }
         else
         {
-          if (key_list[i].key_state=0)//若cnt变量达到10，执行到这里，判断之前的状态是不是按下，以防hold长条，若不是则执行
+          if (key_list[i].key_state==0)//若cnt变量达到10，执行到这里，判断之前的状态是不是按下，以防hold长条，若不是则执行
           {
-            key_list.key_state=1;
-            key_list.press_flag=1;
+            key_list[i].key_state=1;
+            key_list[i].press_flag=1;
             if(key_list[i].press_callback!=NULL)
             {
               key_list[i].press_callback();
@@ -30,18 +38,17 @@
       }
       else
       {
-        if(key_list[i].filter_cnt>0)
-        {
-          key_list[i].filter_cnt--;
-        }
-        /*复位操作*/
-        else
-        {
-          key_list[i].key_state=0;
-        }
+         if(key_list[i].filter_cnt > 0)
+          {
+            key_list[i].filter_cnt--;
+          }
+          else
+          {
+            key_list[i].key_state = 0;
+            key_list[i].press_flag = 0; // 松开后清除按下标志位
+          }
       }
     }
-    return 0;
 }
 /*大概思路是先判断引脚是否为低电平，
 是：
