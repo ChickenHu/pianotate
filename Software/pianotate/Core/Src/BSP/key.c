@@ -3,14 +3,8 @@
 #include <stdint.h>
 
 Key_HandleTypeDef KeyList[7] = {
-    {
-        .filterCount = 0,
-        .gpioPort = GPIOA,
-        .gpioPin = GPIO_PIN_0,
-        .checkFlag = 0,
-        .state = KEY_RELEASED,
-        .keyFlag = false,
-    },
+    
+        
     {
         .filterCount = 0,
         .gpioPort = GPIOA,
@@ -59,6 +53,14 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .keyFlag = false,
     },
+    {
+        .filterCount = 0,
+        .gpioPort = GPIOA,
+        .gpioPin = GPIO_PIN_7,
+        .checkFlag = 0,
+        .state = KEY_RELEASED,
+        .keyFlag = false,
+    },
 };
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -67,31 +69,31 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
     switch (GPIO_Pin)
     {
-    case GPIO_PIN_0:
+    case GPIO_PIN_1:
         pin = 0;
         break;
 
-    case GPIO_PIN_1:
+    case GPIO_PIN_2:
         pin = 1;
         break;
 
-    case GPIO_PIN_2:
+    case GPIO_PIN_3:
         pin = 2;
         break;
 
-    case GPIO_PIN_3:
+    case GPIO_PIN_4:
         pin = 3;
         break;
 
-    case GPIO_PIN_4:
+    case GPIO_PIN_5:
         pin = 4;
         break;
 
-    case GPIO_PIN_5:
+    case GPIO_PIN_6:
         pin = 5;
         break;
 
-    case GPIO_PIN_6:
+    case GPIO_PIN_7:
         pin = 6;
         break;
 
