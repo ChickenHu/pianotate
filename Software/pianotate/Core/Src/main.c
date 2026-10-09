@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "BSP/oled.h"
+#include "BSP/mpu6050.h"
 #include "BSP/timer.h"
 #include "App/animation.h"
 #include "App/music.h"
@@ -107,6 +108,13 @@ int main(void)
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
   OLED_Init();
+  /*
+   * 按原理图固定连接：
+   *   J2 SCL/SDA -> I2C2，即 PB10/PB11；
+   *   AD0 由 10 kΩ 下拉到 GND，地址固定为 0x68（HAL 地址 0xD0）。
+   */
+  HAL_Delay(20);
+  (void)MPU6050_Init(&MPU6050_Device, &hi2c2, MPU6050_ADDR);
   Menu_Init();
   // FourKeys_Init(8, BADAPPLE);
   HAL_TIM_Base_Start_IT(&htim4);
@@ -117,10 +125,11 @@ int main(void)
   if(Timer>1000){
     StartFlag=true;
   }
-  char test[]={'a','B','\0'};
   /* USER CODE END 2 */
 
   /* Infinite loop */
+  /* 上一次读取 MPU6050 的系统计时值。 */
+  uint32_t last_mpu_tick = 0;
   /* USER CODE BEGIN WHILE */
   while (1)
   {
@@ -129,11 +138,21 @@ int main(void)
     /* USER CODE BEGIN 3 */
     if (Flag1ms) {
         Flag1ms = 0;
-  Font_DrawText(&OLED1, 0, 32, test);
+
+        /* 每 10 ms 读取一次传感器，约 100 Hz。 */
+        if (MPU6050_Ready && (Timer - last_mpu_tick >= 10u)) {
+          last_mpu_tick = Timer;
+          if (MPU6050_Read(&MPU6050_Device) == HAL_OK) {
+            /* 读取成功后，根据原始数据更新两个应用层 Flag。 */
+            MPU6050_UpdateFlags(&MPU6050_Device, 10u);
+          } else {
+            /* MPU6050_Read() 已清除状态，这里不再使用旧数据。 */
+          }
+        }
 
         State_Update();
     }
-    
+
   }
   /* USER CODE END 3 */
 }
@@ -178,7 +197,8 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+/* 用户应用代码可以在这里读取 MPU6050_AccelDetectedFlag 和
+ * MPU6050_RotatingFlag，并按需要执行自己的动作。 */
 /* USER CODE END 4 */
 
 /**
