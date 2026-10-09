@@ -23,7 +23,6 @@ void State_Update() {
     // FourKeys_UpdateState();
   } else if (Timer % FreshPeriod == 0) {
     // Menu_Test();
-    Menu_StateUpdate();
     OLED_UpdateState(&OLED2);
   }
 }
