@@ -2,6 +2,7 @@
 #include "animation.h"
 #include "oled.h"
 #include <stdint.h>
+#include "font.h"
 const uint8_t LUT[256] = {
 #embed "../../Inc/Data/LUT.bin"
 };
