@@ -17,11 +17,12 @@ void State_Update() {
   Music_UpdateState();
   if (Timer % (FreshPeriod * 2) == 0) {
     // Animation_Test();
+    Menu_StateUpdate();
     FourKeys_UpdateState();
     OLED_UpdateState(&OLED1);
     // FourKeys_UpdateState();
   } else if (Timer % FreshPeriod == 0) {
-    Menu_Test();
+    // Menu_Test();
     Menu_StateUpdate();
     OLED_UpdateState(&OLED2);
   }

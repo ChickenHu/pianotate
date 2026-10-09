@@ -28,6 +28,9 @@ extern void OLED_FreshFrame(OLED_HandleTypeDef *oled);
 
 extern void OLED_DrawPixel(uint8_t *frameBuffer, uint8_t x, uint8_t y);
 
+extern void OLED_Delete(uint8_t *frameBuffer, uint8_t x, uint8_t y,
+                        uint8_t width, uint8_t height);
+
 extern void OLED_DrawLine(uint8_t *frameBuffer, uint8_t x0, uint8_t y0,
                           uint8_t x1, uint8_t y1);
 

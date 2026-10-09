@@ -7,7 +7,7 @@ SoundChannel Channel1 = {false, false, 0, 0, NONE, 0, &BEEPER1},
 
 #define TONE_COUNT (12 * 7)
 
-const ToneData_t ToneData = {.bytes = {
+const ToneData_t ToneData = {{
 #embed "../../Inc/Data/tone.bin"
                              }};
 const uint8_t BadApple[456] = {

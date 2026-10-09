@@ -106,14 +106,15 @@ int main(void)
   /* USER CODE BEGIN 2 */
   OLED_Init();
   Menu_Init();
-  FourKeys_Init(8, BADAPPLE);
+  // FourKeys_Init(8, BADAPPLE);
   HAL_TIM_Base_Start_IT(&htim4);
-  MenuState.state=1;
-  Menu_Test();
+  MenuState.animationDirect = 1;
+  // Menu_Test();
   while (Timer<=1000) {
   }
   if(Timer>1000){
-    StartFlag=true;
+    // StartFlag=true;
+    MenuState.page=MENU_PAGE_MODE;
   }
   /* USER CODE END 2 */
 

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/_intsup.h>
-const uint8_t FreshPeriod = 30; // 刷新周期，单位为ms
+const uint8_t FreshPeriod = 25; // 刷新周期，单位为ms
 uint8_t InitCmd[] = {
     0x00,       // Control byte: following bytes are commands
     0xAE,       // Display OFF
@@ -100,6 +100,29 @@ void OLED_DrawPixel(uint8_t *frameBuffer, uint8_t x, uint8_t y) {
   uint8_t bitPosition = y & 0b0111;
   frameBuffer[((page << 7) | page) + x + 1] |= (1 << bitPosition);
   // OLED_FreshFrame(frameBuffer);
+}
+void OLED_Delete(uint8_t *frameBuffer, uint8_t x, uint8_t y, uint8_t width,
+                uint8_t height) {
+  if (frameBuffer == NULL || width == 0 || height == 0) {
+    return;
+  }
+
+  uint8_t xEnd = x + width;
+  uint8_t yEnd = y + height;
+
+  for (uint8_t py = y; py < yEnd; py++) {
+    if (py >= 64) {
+      break;
+    }
+    for (uint8_t px = x; px < xEnd; px++) {
+      if (px >= 128) {
+        break;
+      }
+      uint16_t page = py >> 3;
+      uint8_t bitPosition = py & 0b0111;
+      frameBuffer[((page << 7) | page) + px + 1] &= ~(1u << bitPosition);
+    }
+  }
 }
 void OLED_DrawLine(uint8_t *frameBuffer, uint8_t x0, uint8_t y0, uint8_t x1,
                    uint8_t y1) {

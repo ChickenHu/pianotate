@@ -18,8 +18,8 @@ void Piano_Init(void)
 {
     Music_StopNote(&Channel1);
     Music_StopNote(&Channel2);
-    Channel1_Playing = false;
-    Channel2_Playing = false;
+    Channel1.isPlaying = false;
+    Channel2.isPlaying = false;
     Piano_Active = true;
 }
 //初始化电子琴,蜂鸣器状态改为关，并改Piano_Active为True
