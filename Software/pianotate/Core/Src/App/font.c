@@ -129,4 +129,3 @@ void Font_DrawText(OLED_HandleTypeDef *oled,
         text++;
     }
 }
-13:01

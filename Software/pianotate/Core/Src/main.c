@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "font.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
@@ -33,6 +34,7 @@
 #include "App/menu.h"
 #include "App/fourkeys.h"
 #include <stdint.h>
+#include <sys/_intsup.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -106,15 +108,16 @@ int main(void)
   /* USER CODE BEGIN 2 */
   OLED_Init();
   Menu_Init();
-  FourKeys_Init(8, BADAPPLE);
+  // FourKeys_Init(8, BADAPPLE);
   HAL_TIM_Base_Start_IT(&htim4);
-  MenuState.state=1;
+  // MenuState.state=1;
   Menu_Test();
   while (Timer<=1000) {
   }
   if(Timer>1000){
     StartFlag=true;
   }
+  char test[]={'a','B','\0'};
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -126,6 +129,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
     if (Flag1ms) {
         Flag1ms = 0;
+  Font_DrawText(&OLED1, 0, 32, test);
 
         State_Update();
     }
