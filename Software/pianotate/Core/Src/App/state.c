@@ -1,18 +1,23 @@
 #include "state.h"
 #include "key.h"
+#include "led.h"
 #include "menu.h"
 #include "oled.h"
 #include "stm32f103xb.h"
 #include "stm32f1xx_hal_gpio.h"
+#include <stdint.h>
 #include <stdlib.h>
+
 
 void State_Update() {
   // 所有状态机的状态更新都放在此处，统一维护
   Key_Update();
-  if (KeyList[3].keyFlag) {
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-  } else {
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+  for (uint8_t i = 0; i < 7; i++) {
+    if (KeyList[i].keyFlag) {
+      HAL_GPIO_WritePin(LED[i].gpio, LED[i].pin, GPIO_PIN_SET);
+    } else {
+      HAL_GPIO_WritePin(LED[i].gpio, LED[i].pin, GPIO_PIN_RESET);
+    }
   }
   Music_UpdateState();
   if (Timer % (FreshPeriod * 2) == 0) {
