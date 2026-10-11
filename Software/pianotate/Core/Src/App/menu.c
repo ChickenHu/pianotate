@@ -106,7 +106,6 @@ static void Menu_DrawModePage(void) {
 static void Menu_DrawSongPage(void) {
   int16_t phase = MenuState.animationProcess;
   if (MenuState.isAnimating) {
-    int16_t phase = MenuState.animationProcess;
     phase += delta;
     if (phase > 256) {
       MenuState.isAnimating = false;
@@ -129,7 +128,6 @@ static void Menu_DrawSongPage(void) {
 static void Menu_DrawSpeedPage(void) {
   int16_t phase = MenuState.animationProcess;
   if (MenuState.isAnimating) {
-    int16_t phase = MenuState.animationProcess;
     phase += delta;
     if (phase > 256) {
       MenuState.isAnimating = false;

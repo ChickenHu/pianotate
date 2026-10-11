@@ -2,6 +2,7 @@
 #include "animation.h"
 #include "music.h"
 #include "oled.h"
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,34 +24,30 @@ SongName PlayingSongName;
 typedef struct {
   NoteType_t noteType;
   bool isChecked;
-  uint16_t id;
+  uint16_t startId;
+  uint16_t endId;
   bool rotateDirect; // 0-left,1-right;仅当noteType=ROTATE时有意义
 } Note;
-Note NoteBuffer[4][150] = {}; // 每条轨道上最多150个音符
+Note NoteBuffer[4][200] = {}; // 每条轨道上最多150个音符
 
 static uint32_t rng_state = 0x114514u;
-                                                                                                                                                                                                                        
+
 static inline uint8_t PRNG4(void) {
   rng_state = rng_state * 1664525u + 1013904223u;
   return (uint8_t)(rng_state >> 30);
 }
 
-static inline int32_t FourKeys_GetStartZ(uint16_t id) {
+static inline int32_t FourKeys_GetStartZ(int lane,int index) {
+  uint16_t id=NoteBuffer[lane][index].startId;
   return Beat * Size * Speed / FreshPeriod / 2 -
          Beat * id * Speed / FreshPeriod / 2;
 }
 
-static inline int32_t FourKeys_GetEndZ(uint16_t id) {
-  uint16_t endId = id;
-  while (endId + 1 < Size &&
-         Music_GetSongNote(PlayingSongName, endId + 1) ==
-             Music_GetSongNote(PlayingSongName, id)) {
-    endId++;
-  }
+static inline int32_t FourKeys_GetEndZ(int lane,int index) {
+  uint16_t id=NoteBuffer[lane][index].endId;
   return Beat * Size * Speed / FreshPeriod / 2 -
-         Beat * endId * Speed / FreshPeriod / 2 - NoteSize;
+         Beat * id * Speed / FreshPeriod / 2 - NoteSize;
 }
-
 void FourKeys_Init(int32_t speed, SongName songName) {
   Speed = speed;
   Beat = Music_GetSongBeat(songName);
@@ -61,25 +58,25 @@ void FourKeys_Init(int32_t speed, SongName songName) {
   ZOffset = Beat * Size * Speed / FreshPeriod / 2;
   for (int i = 0; i < Size; i++) {
     // i增加，离Zoffset越来越远，越后被显示
-    NoteBuffer[lane][KeySize[lane]].id = i;
+    NoteBuffer[lane][KeySize[lane]].startId = i;
     NoteBuffer[lane][KeySize[lane]].noteType = NOTE;
     while (i + 1 < Size && Music_GetSongNote(songName, i + 1) ==
-           Music_GetSongNote(songName, i)) {
+                               Music_GetSongNote(songName, i)) {
       NoteBuffer[lane][KeySize[lane]].noteType = HOLD;
       i++;
     }
+    NoteBuffer[lane][KeySize[lane]].endId = i;
     /*ROTATE生成逻辑暂未实现*/
     KeySize[lane]++;
     lane = PRNG4();
   }
   StartFlag = true;
-  // KeyFront[lane] = FindKeyFront(lane, ZOffset);
-  // memcpy(KeySize, KeyFront, 4);
+  memset(KeyFront, 0, sizeof(uint8_t)*4);
 }
 
-inline void FourKeys_DrawNote(int16_t startZ, int16_t endZ, uint8_t lane) {
-  for (int16_t z = startZ; z >= endZ; z--) {
-    int16_t index = z - ZOffset;
+inline void FourKeys_DrawNote(int32_t startZ, int32_t endZ, uint8_t lane) {
+  for (int32_t z = startZ; z >= endZ; z--) {
+    int32_t index = z - ZOffset;
     if (index >= 512) {
       continue;
     }
@@ -92,8 +89,23 @@ inline void FourKeys_DrawNote(int16_t startZ, int16_t endZ, uint8_t lane) {
                   projection_table[index][lane].x, 32);
   }
 }
-inline void FourKeys_DrawRotate(int16_t startZ, int16_t endZ, uint8_t lane) {
-  
+inline void FourKeys_DrawRotate(int32_t startZ, int32_t endZ, uint8_t lane) {
+  bool drawOrNot = true;
+  for (int32_t z = startZ; z >= endZ; z--) {
+    int32_t index = z - ZOffset;
+    if (index >= 512) {
+      continue;
+    }
+    if (index < 0) {
+      break;
+    }
+    if (drawOrNot) {
+      OLED_DrawLine(OLED1.FrameBufferPtr, projection_table[index][lane].x,
+                    projection_table[index][lane].y,
+                    projection_table[index][lane].x, 32);
+    }
+    drawOrNot = !drawOrNot;
+  }
 }
 
 void FourKeys_UpdateState() {
@@ -122,13 +134,13 @@ void FourKeys_UpdateState() {
   OLED_Clear(&OLED1);
   for (int lane = 0; lane < 4; lane++) {
     while (KeyFront[lane] + 1 < KeySize[lane] &&
-           FourKeys_GetStartZ(
-               NoteBuffer[lane][KeyFront[lane] + 1].id) >= ZOffset) {
+           FourKeys_GetStartZ(lane,KeyFront[lane] + 1) >=
+               ZOffset) {
       KeyFront[lane]++;
     }
     for (int16_t i = KeyFront[lane]; i >= 0; i--) {
-      int32_t startZ = FourKeys_GetStartZ(NoteBuffer[lane][i].id);
-      int32_t endZ = FourKeys_GetEndZ(NoteBuffer[lane][i].id);
+      int32_t startZ = FourKeys_GetStartZ(lane,i);
+      int32_t endZ = FourKeys_GetEndZ(lane,i);
       if (endZ > ZOffset + 512) {
         break;
       }
