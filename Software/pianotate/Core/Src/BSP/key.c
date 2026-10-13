@@ -1,64 +1,72 @@
 #include "key.h"
 #include "stm32f1xx_hal_gpio.h"
+#include "timer.h"
 #include <stdint.h>
 
 Key_HandleTypeDef KeyList[7] = {
     
         
     {
-        .filterCount = 0,
+        .pendingSince = 0,
         .gpioPort = GPIOA,
         .gpioPin = GPIO_PIN_1,
         .checkFlag = 0,
         .state = KEY_RELEASED,
+        .pendingState = KEY_RELEASED,
         .keyFlag = false,
     },
     {
-        .filterCount = 0,
+        .pendingSince = 0,
         .gpioPort = GPIOA,
         .gpioPin = GPIO_PIN_2,
         .checkFlag = 0,
         .state = KEY_RELEASED,
+        .pendingState = KEY_RELEASED,
         .keyFlag = false,
     },
     {
-        .filterCount = 0,
+        .pendingSince = 0,
         .gpioPort = GPIOA,
         .gpioPin = GPIO_PIN_3,
         .checkFlag = 0,
         .state = KEY_RELEASED,
+        .pendingState = KEY_RELEASED,
         .keyFlag = false,
     },
     {
-        .filterCount = 0,
+        .pendingSince = 0,
         .gpioPort = GPIOA,
         .gpioPin = GPIO_PIN_4,
         .checkFlag = 0,
         .state = KEY_RELEASED,
+        .pendingState = KEY_RELEASED,
         .keyFlag = false,
     },
     {
-        .filterCount = 0,
+        .pendingSince = 0,
         .gpioPort = GPIOA,
         .gpioPin = GPIO_PIN_5,
         .checkFlag = 0,
         .state = KEY_RELEASED,
+        .pendingState = KEY_RELEASED,
         .keyFlag = false,
     },
     {
-        .filterCount = 0,
+        .pendingSince = 0,
         .gpioPort = GPIOA,
         .gpioPin = GPIO_PIN_6,
         .checkFlag = 0,
         .state = KEY_RELEASED,
+        .pendingState = KEY_RELEASED,
         .keyFlag = false,
     },
     {
-        .filterCount = 0,
+        .pendingSince = 0,
         .gpioPort = GPIOA,
         .gpioPin = GPIO_PIN_7,
         .checkFlag = 0,
         .state = KEY_RELEASED,
+        .pendingState = KEY_RELEASED,
         .keyFlag = false,
     },
 };
@@ -101,13 +109,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         return;
     }
 
-    KeyList[pin].state =
+    KeyList[pin].pendingState =
         HAL_GPIO_ReadPin(
             KeyList[pin].gpioPort,
             KeyList[pin].gpioPin
         );
 
-    KeyList[pin].filterCount = 0;
+    KeyList[pin].pendingSince = Timer;
     KeyList[pin].checkFlag = true;
 }
 
@@ -130,26 +138,24 @@ void Key_Update(void)
          * 当前电平已经和目标状态不同，
          * 说明按键仍在抖动。
          */
-        if (current != KeyList[pin].state)
+        if (current != KeyList[pin].pendingState)
         {
-            KeyList[pin].filterCount = 0;
+            KeyList[pin].pendingState = current;
+            KeyList[pin].pendingSince = Timer;
             continue;
         }
 
-        /*
-         * 当前电平与目标状态一致，
-         * 连续稳定计数。
-         */
-        KeyList[pin].filterCount++;
-
-        if (KeyList[pin].filterCount >= KEY_DEBOUNCE)
+        if ((uint32_t)(Timer - KeyList[pin].pendingSince) >= KEY_DEBOUNCE)
         {
             /*
              * 确认状态改变
              */
-            KeyList[pin].keyFlag = (KeyList[pin].state == KEY_PRESSED);
+            if (KeyList[pin].state != KeyList[pin].pendingState)
+            {
+                KeyList[pin].state = KeyList[pin].pendingState;
+                KeyList[pin].keyFlag = true;
+            }
 
-            KeyList[pin].filterCount = 0;
             KeyList[pin].checkFlag = false;
         }
     }

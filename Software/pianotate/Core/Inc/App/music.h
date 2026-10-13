@@ -12,7 +12,7 @@ typedef struct {
   uint16_t noteIndex;
   SongName songName;
   uint16_t songSize;
-  uint16_t nextNoteTime;
+  uint32_t nextNoteTime;
   TIM_HandleTypeDef *beeper;
 } SoundChannel;
 typedef union {
@@ -24,7 +24,7 @@ extern const ToneData_t ToneData;
 
 extern SoundChannel Channel1, Channel2;
 
-extern const uint8_t BadApple[456];
+extern const uint8_t BadAppleData[];
 extern const uint8_t Fish[541];
 
 extern uint16_t Music_GetSongSize(SongName songName);
@@ -34,3 +34,6 @@ extern void Music_PlayNote(SoundChannel *channel, uint8_t note);
 extern void Music_StopNote(SoundChannel *channel);
 extern void Music_UpdateState();
 extern void Music_Play(SongName songName);
+extern void Music_Stop();
+extern void Music_Pause();
+extern void Music_Resume(uint16_t rewindMs);

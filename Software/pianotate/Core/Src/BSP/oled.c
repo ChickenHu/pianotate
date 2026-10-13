@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/_intsup.h>
-const uint8_t FreshPeriod = 25; // 刷新周期，单位为ms
+const uint8_t FreshPeriod = 20; // 刷新周期，单位为ms
 uint8_t InitCmd[] = {
     0x00,       // Control byte: following bytes are commands
     0xAE,       // Display OFF
@@ -28,8 +28,10 @@ uint8_t InitCmd[] = {
     0xAF        // Display ON
 };
 OLED_HandleTypeDef OLED1 = {}, OLED2 = {};
-void OLED_Send(OLED_HandleTypeDef *oled, uint8_t *data, uint8_t len) {
-  HAL_I2C_Master_Transmit(oled->OLED, OLED_ADDRESS, data, len, HAL_MAX_DELAY);
+HAL_StatusTypeDef OLED_Send(OLED_HandleTypeDef *oled, uint8_t *data,
+                            uint8_t len) {
+  return HAL_I2C_Master_Transmit(oled->OLED, OLED_ADDRESS, data, len,
+                                 HAL_MAX_DELAY);
 }
 void OLED_SendCmd(OLED_HandleTypeDef *oled, uint8_t cmd) {
   static uint8_t sendBuffer[2] = {0};
@@ -64,6 +66,8 @@ void OLED_Init() {
 
   /*&OLED2*/
   OLED_Send(&OLED2, InitCmd, sizeof(InitCmd));
+  OLED_SendCmd(&OLED2, 0xC0);
+  OLED_SendCmd(&OLED2, 0xA0);
   for (uint16_t page = 0; page < 8; page++) {
     OLED_SendCmd(&OLED2, 0xB0 | page);
     OLED_SendCmd(&OLED2, 0x00);
@@ -78,19 +82,34 @@ void OLED_Clear(OLED_HandleTypeDef *oled) {
   }
 }
 void OLED_FreshFrame(OLED_HandleTypeDef *oled) {
-  for (uint16_t page = 0; page < 8; page++) {
-    if (memcmp(&oled->FrameBufferPtr[((page << 7) | page)],
-               &oled->FrameBufferPrevPtr[((page << 7) | page)], 129)) {
-      uint8_t cmd[] = {0x00, 0xB0 | page, 0x00, 0x10};
-      OLED_Send(oled, cmd, 3);
+  bool fullRefresh = oled == &OLED1;
+  for (uint8_t page = 0; page < 8; page++) {
+    uint16_t pageOffset = (page << 7) | page;
+    if (!fullRefresh &&
+        !memcmp(&oled->FrameBufferPtr[pageOffset],
+                &oled->FrameBufferPrevPtr[pageOffset], 129)) {
+      continue;
+    }
 
-      OLED_Send(oled, &oled->FrameBufferPtr[((page << 7) | page)], 129);
+    uint8_t cmd[] = {0x00, (uint8_t)(0xB0 | page), 0x00, 0x10};
+    if (OLED_Send(oled, cmd, sizeof(cmd)) != HAL_OK ||
+        OLED_Send(oled, &oled->FrameBufferPtr[pageOffset], 129) != HAL_OK) {
+      break;
+    }
+    memcpy(&oled->FrameBufferPrevPtr[pageOffset],
+           &oled->FrameBufferPtr[pageOffset], 129);
+    oled->nextPage = (page + 1u) & 0x07u;
+  }
+}
+bool OLED_HasPendingChanges(const OLED_HandleTypeDef *oled) {
+  for (uint8_t page = 0; page < 8; page++) {
+    uint16_t pageOffset = (page << 7) | page;
+    if (memcmp(&oled->FrameBufferPtr[pageOffset],
+               &oled->FrameBufferPrevPtr[pageOffset], 129)) {
+      return true;
     }
   }
-  // swap
-  uint8_t *temp = oled->FrameBufferPtr;
-  oled->FrameBufferPtr = oled->FrameBufferPrevPtr;
-  oled->FrameBufferPrevPtr = temp;
+  return false;
 }
 void OLED_DrawPixel(uint8_t *frameBuffer, uint8_t x, uint8_t y) {
   if (x >= 128 || y >= 64) {

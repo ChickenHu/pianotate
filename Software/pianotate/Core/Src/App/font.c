@@ -57,6 +57,18 @@ static const uint8_t Font_Lower[26][5] = {
     {0x0C, 0x50, 0x50, 0x50, 0x3C}, /* y */
     {0x44, 0x64, 0x54, 0x4C, 0x44}  /* z */
 };
+static const uint8_t Font_Digit[10][5] = {
+    {0x3E, 0x51, 0x49, 0x45, 0x3E}, /* 0 */
+    {0x00, 0x42, 0x7F, 0x40, 0x00}, /* 1 */
+    {0x42, 0x61, 0x51, 0x49, 0x46}, /* 2 */
+    {0x21, 0x41, 0x45, 0x4B, 0x31}, /* 3 */
+    {0x18, 0x14, 0x12, 0x7F, 0x10}, /* 4 */
+    {0x27, 0x45, 0x45, 0x45, 0x39}, /* 5 */
+    {0x3C, 0x4A, 0x49, 0x49, 0x30}, /* 6 */
+    {0x01, 0x71, 0x09, 0x05, 0x03}, /* 7 */
+    {0x36, 0x49, 0x49, 0x49, 0x36}, /* 8 */
+    {0x06, 0x49, 0x49, 0x29, 0x1E}  /* 9 */
+};
 static const uint8_t *Font_GetGlyph(char character)
 {
     static const uint8_t space[5] = {
@@ -65,6 +77,9 @@ static const uint8_t *Font_GetGlyph(char character)
 
     static const uint8_t unknown[5] = {
         0x02, 0x01, 0x51, 0x09, 0x06
+    };
+    static const uint8_t minus[5] = {
+        0x00, 0x00, 0x08, 0x00, 0x00
     };
 
     if (character >= 'A' && character <= 'Z') {
@@ -75,8 +90,16 @@ static const uint8_t *Font_GetGlyph(char character)
         return Font_Lower[character - 'a'];
     }
 
+    if (character >= '0' && character <= '9') {
+        return Font_Digit[character - '0'];
+    }
+
     if (character == ' ') {
         return space;
+    }
+
+    if (character == '-') {
+        return minus;
     }
 
     return unknown;

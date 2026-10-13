@@ -1,8 +1,13 @@
 #pragma once
 #include "oled.h"
 #include "animation.h"
+#include "music.h"
 #include <limits.h>
 #include <stdint.h>
+
+#define MENU_SONG_COVER_WIDTH 60u
+#define MENU_SONG_COVER_HEIGHT 60u
+#define MENU_SONG_COVER_BYTES (MENU_SONG_COVER_WIDTH * 8u)
 
 typedef enum {
   MENU_PAGE_NONE = 0,
@@ -29,3 +34,10 @@ extern MenuState_t MenuState;
 extern void Menu_Init();
 extern void Menu_Test();
 extern void Menu_StateUpdate();
+extern void Menu_ReturnToSong();
+extern void Menu_ReturnToMode();
+extern void Menu_DrawArrow(int16_t yAxis, int16_t xAxis,
+                           OLED_HandleTypeDef *oled);
+/* bitmap uses 8 bytes per column; bit 0 is the top pixel. */
+extern bool Menu_SetSongCover(SongName songName, const uint8_t *bitmap,
+                              uint16_t bitmapSize);

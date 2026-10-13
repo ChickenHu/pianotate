@@ -6,12 +6,13 @@
 
 typedef struct
 {
-  uint8_t filterCount;
+  uint32_t pendingSince;
   GPIO_TypeDef *gpioPort;
   uint16_t gpioPin;
   bool checkFlag;
-  bool keyFlag;
+  bool keyFlag; // 按键状态变化待处理标志
   GPIO_PinState state;
+  GPIO_PinState pendingState;
 } Key_HandleTypeDef;
 
 #define KEY_PRESSED   GPIO_PIN_RESET

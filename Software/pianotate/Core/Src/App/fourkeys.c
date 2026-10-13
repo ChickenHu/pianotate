@@ -1,34 +1,52 @@
 #include "fourkeys.h"
 #include "animation.h"
+#include "font.h"
+#include "key.h"
+#include "leaderboard.h"
+#include "menu.h"
 #include "music.h"
+#include "mpu6050.h"
 #include "oled.h"
+#include "piano.h"
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_intsup.h>
 // 先z 再x 最后 y
 // z先大后小，x先0再127
-int32_t Speed = 4;                  // 每个frame刷新时新增的Z-offset
-int32_t ZOffset = 6400;             // 当前的Z-offset
-uint8_t KeyFront[4] = {0, 0, 0, 0}, // 每条轨道上当前最靠近低Z端的候选音符
-    KeySize[4] = {0, 0, 0, 0};
+int32_t Speed = 4;                   // 每个frame刷新时新增的Z-offset
+int32_t ZOffset = 6400;              // 当前的Z-offset
+static int32_t InitialZOffset;
+static uint32_t GameStartTick;
+static uint32_t PauseTick;
+static uint32_t GameOverBlinkTick;
+static bool GamePaused;
+static bool GameOver;
+static bool GameOverTextVisible;
+static bool PianoChartActive;
+static uint16_t PianoChartDurationMs;
+static uint8_t PianoChartNoteCount;
+static const PianoRecordedNote_t *PianoChartNotes;
+static uint8_t PianoPlaybackTone[2];
+uint16_t KeyFront[4] = {0, 0, 0, 0}, // 每条轨道上当前最靠近低Z端的候选音符
+  KeySize[4] = {0, 0, 0, 0};
+static uint16_t JudgeNext[4] = {0, 0, 0, 0};
 uint16_t Beat;
 uint8_t NoteSize = 8;
 uint16_t Size = 0;
+uint8_t border[128][2] = {
+#embed "../../Inc/Data/border.bin"
+};
 
 bool StartFlag = false;
 bool MusicStartFlag = false;
 
 SongName PlayingSongName;
 
-typedef struct {
-  NoteType_t noteType;
-  bool isChecked;
-  uint16_t startId;
-  uint16_t endId;
-  bool rotateDirect; // 0-left,1-right;仅当noteType=ROTATE时有意义
-} Note;
 Note NoteBuffer[4][200] = {}; // 每条轨道上最多150个音符
+
+Score_t Score;
 
 static uint32_t rng_state = 0x114514u;
 
@@ -37,116 +55,555 @@ static inline uint8_t PRNG4(void) {
   return (uint8_t)(rng_state >> 30);
 }
 
-static inline int32_t FourKeys_GetStartZ(int lane,int index) {
-  uint16_t id=NoteBuffer[lane][index].startId;
+static inline int32_t FourKeys_GetStartZ(int lane, int index) {
+  uint16_t id = NoteBuffer[lane][index].startId;
+  if (PianoChartActive) {
+    uint32_t framePeriod = (uint32_t)FreshPeriod * 2u;
+    uint32_t distance =
+        (uint32_t)((uint64_t)id * (uint32_t)Speed / framePeriod);
+    return InitialZOffset - (int32_t)distance;
+  }
   return Beat * Size * Speed / FreshPeriod / 2 -
          Beat * id * Speed / FreshPeriod / 2;
 }
 
-static inline int32_t FourKeys_GetEndZ(int lane,int index) {
-  uint16_t id=NoteBuffer[lane][index].endId;
+static inline int32_t FourKeys_GetJudgeDiff(int lane, int index) {
+  return FourKeys_GetStartZ(lane, index) - (ZOffset + 512);
+}
+
+static inline int32_t FourKeys_GetEndZ(int lane, int index) {
+  uint16_t id = NoteBuffer[lane][index].endId;
+  if (PianoChartActive) {
+    uint32_t framePeriod = (uint32_t)FreshPeriod * 2u;
+    uint32_t distance =
+        (uint32_t)((uint64_t)id * (uint32_t)Speed / framePeriod);
+    return InitialZOffset - (int32_t)distance - NoteSize;
+  }
   return Beat * Size * Speed / FreshPeriod / 2 -
          Beat * id * Speed / FreshPeriod / 2 - NoteSize;
 }
+
+static uint32_t FourKeys_GetLeadInMs(void) {
+  uint32_t framePeriod = (uint32_t)FreshPeriod * 2u;
+  return (512u * framePeriod + (uint32_t)Speed - 1u) / (uint32_t)Speed;
+}
+
+static void FourKeys_UpdateTimeline(void) {
+  if (!StartFlag || Speed <= 0) {
+    return;
+  }
+
+  uint32_t elapsed = (uint32_t)(Timer - GameStartTick);
+  uint32_t framePeriod = (uint32_t)FreshPeriod * 2u;
+  uint32_t distance =
+      (uint32_t)(((uint64_t)elapsed * (uint32_t)Speed) / framePeriod);
+  ZOffset = InitialZOffset - (int32_t)distance;
+
+  uint32_t musicStartDelay =
+      (512u * framePeriod + (uint32_t)Speed - 1u) / (uint32_t)Speed;
+  if (!MusicStartFlag && elapsed >= musicStartDelay) {
+    MusicStartFlag = true;
+    if (PlayingSongName != NONE) {
+      Music_Play(PlayingSongName);
+    }
+  }
+}
+
+static void FourKeys_FormatNumber(uint32_t value, char output[11]) {
+  char reversedDigits[10];
+  uint8_t digitCount = 0;
+
+  do {
+    reversedDigits[digitCount++] = (char)('0' + value % 10);
+    value /= 10;
+  } while (value != 0 && digitCount < sizeof(reversedDigits));
+
+  for (uint8_t digit = 0; digit < digitCount; digit++) {
+    output[digit] = reversedDigits[digitCount - digit - 1];
+  }
+  output[digitCount] = '\0';
+}
+
+static void FourKeys_RecordPerfect(void) {
+  Score.perfect++;
+  Score.combo++;
+  Score.maxCombo = Score.maxCombo > Score.combo ? Score.maxCombo : Score.combo;
+  Score.totalScore += 200 + (Score.combo >> 2);
+}
+
+static void FourKeys_DrawScore(void) {
+  char scoreText[11];
+  char comboText[11];
+  FourKeys_FormatNumber(Score.totalScore, scoreText);
+  FourKeys_FormatNumber(Score.combo, comboText);
+
+  OLED_Clear(&OLED2);
+  Font_DrawText(&OLED2, 0, 0, "SCORE");
+  Font_DrawText(&OLED2, 36, 0, scoreText);
+  Font_DrawText(&OLED2, 0, 16, "COMBO");
+  Font_DrawText(&OLED2, 36, 16, comboText);
+  if (PianoChartActive) {
+    Font_DrawText(&OLED2, 0, 48, "Improvisation");
+  }
+}
+
+static const char *FourKeys_GetResultText(void) {
+  if (Score.perfect == Size) {
+    return "ALL PERFECT";
+  }
+  if (Score.combo == Size) {
+    return "FULL COMBO";
+  }
+  return "Clear";
+}
+
+static void FourKeys_DrawResult(void) {
+  FourKeys_DrawScore();
+  if (GameOverTextVisible) {
+    Font_DrawText(&OLED2, 0, 32, FourKeys_GetResultText());
+  }
+}
+
+static void FourKeys_ClearKeyFlags(void) {
+  for (uint8_t key = 0; key < 7; key++) {
+    KeyList[key].keyFlag = false;
+  }
+}
+
+static void FourKeys_Resume(void) {
+  uint32_t elapsed = PauseTick - GameStartTick;
+  uint32_t resumedElapsed = elapsed > 3000u ? elapsed - 3000u : 0u;
+  GameStartTick = Timer - resumedElapsed;
+  GamePaused = false;
+  memset(KeyFront, 0, sizeof(KeyFront));
+  PianoPlaybackTone[0] = 0;
+  PianoPlaybackTone[1] = 0;
+
+  uint32_t framePeriod = (uint32_t)FreshPeriod * 2u;
+  uint32_t musicStartDelay =
+      (512u * framePeriod + (uint32_t)Speed - 1u) / (uint32_t)Speed;
+  if (resumedElapsed < musicStartDelay) {
+    Music_Stop();
+    MusicStartFlag = false;
+  } else if (MusicStartFlag) {
+    Music_Resume(3000);
+  } else {
+    Music_Resume(0);
+  }
+  FourKeys_UpdateTimeline();
+}
+
 void FourKeys_Init(int32_t speed, SongName songName) {
+  Music_Stop();
+  PianoChartActive = false;
+  PianoChartNotes = NULL;
+  PianoChartNoteCount = 0;
+  PianoChartDurationMs = 0;
+  PianoPlaybackTone[0] = 0;
+  PianoPlaybackTone[1] = 0;
+  GamePaused = false;
+  GameOver = false;
+  GameOverTextVisible = false;
   Speed = speed;
-  Beat = Music_GetSongBeat(songName);
+  Beat = Music_GetSongBeat(songName == NONE ? FISH : songName);
   PlayingSongName = songName;
   Animation_SetUI();
   uint8_t lane = 0;
-  Size = Music_GetSongSize(songName);
+  Size = songName == NONE ? 8 : Music_GetSongSize(songName);
   ZOffset = Beat * Size * Speed / FreshPeriod / 2;
-  for (int i = 0; i < Size; i++) {
-    // i增加，离Zoffset越来越远，越后被显示
-    NoteBuffer[lane][KeySize[lane]].startId = i;
-    NoteBuffer[lane][KeySize[lane]].noteType = NOTE;
-    while (i + 1 < Size && Music_GetSongNote(songName, i + 1) ==
-                               Music_GetSongNote(songName, i)) {
-      NoteBuffer[lane][KeySize[lane]].noteType = HOLD;
-      i++;
+  InitialZOffset = ZOffset;
+  GameStartTick = Timer;
+  memset(KeyFront, 0, sizeof(KeyFront));
+  memset(KeySize, 0, sizeof(KeySize));
+  memset(JudgeNext, 0, sizeof(JudgeNext));
+  memset(NoteBuffer, 0, sizeof(NoteBuffer));
+  Score = (Score_t){0};
+  MusicStartFlag = false;
+  if (songName == NONE) {
+    NoteBuffer[0][0] = (Note){
+        .noteType = ROTATE,
+        .isChecked = false,
+        .startId = 4,
+        .endId = 4,
+        .rotateDirect = false,
+    };
+    KeySize[0] = 1;
+  } else {
+    for (int i = 0; i < Size; i++) {
+      // i增加，离Zoffset越来越远，越后被显示
+      NoteBuffer[lane][KeySize[lane]].startId = i;
+      NoteType_t noteType = NOTE;
+      while (i % 8 != 7 && i + 1 < Size &&
+             Music_GetSongNote(songName, i + 1) == Music_GetSongNote(songName, i)) {
+        noteType = HOLD;
+        i++;
+      }
+      NoteBuffer[lane][KeySize[lane]].noteType = noteType;
+      NoteBuffer[lane][KeySize[lane]].endId = i;
+      NoteBuffer[lane][KeySize[lane]].rotateDirect = false;
+      KeySize[lane]++;
+      if (i % 8 == 7 && PRNG4() == 0) {
+        uint8_t rotateLane = PRNG4();
+        uint16_t rotateIndex = KeySize[rotateLane]++;
+        NoteBuffer[rotateLane][rotateIndex].noteType = ROTATE;
+        NoteBuffer[rotateLane][rotateIndex].isChecked = false;
+        NoteBuffer[rotateLane][rotateIndex].startId = i;
+        NoteBuffer[rotateLane][rotateIndex].endId = i;
+        NoteBuffer[rotateLane][rotateIndex].rotateDirect = false;
+      }
+      lane = PRNG4();
     }
-    NoteBuffer[lane][KeySize[lane]].endId = i;
-    /*ROTATE生成逻辑暂未实现*/
-    KeySize[lane]++;
-    lane = PRNG4();
   }
   StartFlag = true;
-  memset(KeyFront, 0, sizeof(uint8_t)*4);
 }
 
-inline void FourKeys_DrawNote(int32_t startZ, int32_t endZ, uint8_t lane) {
-  for (int32_t z = startZ; z >= endZ; z--) {
-    int32_t index = z - ZOffset;
-    if (index >= 512) {
+void FourKeys_InitFromPiano(int32_t speed,
+                            const PianoRecordedNote_t *notes,
+                            uint8_t noteCount,
+                            uint16_t durationMs) {
+  if (notes == NULL || noteCount == 0 ||
+      noteCount > PIANO_RECORD_CAPACITY || speed <= 0) {
+    return;
+  }
+
+  FourKeys_Init(speed, NONE);
+  PianoChartActive = true;
+  PianoChartNotes = notes;
+  PianoChartNoteCount = noteCount;
+  PianoChartDurationMs = durationMs;
+  memset(KeyFront, 0, sizeof(KeyFront));
+  memset(KeySize, 0, sizeof(KeySize));
+  memset(JudgeNext, 0, sizeof(JudgeNext));
+  memset(NoteBuffer, 0, sizeof(NoteBuffer));
+  Size = noteCount;
+  Score = (Score_t){0};
+  MusicStartFlag = false;
+  PianoPlaybackTone[0] = 0;
+  PianoPlaybackTone[1] = 0;
+
+  for (uint8_t index = 0; index < noteCount; index++) {
+    uint8_t lane = notes[index].voice == 0 ? 1 : 2;
+    uint16_t laneIndex = KeySize[lane]++;
+    NoteBuffer[lane][laneIndex] = (Note){
+        .noteType = HOLD,
+        .isChecked = false,
+        .startId = notes[index].startMs,
+        .endId = notes[index].endMs,
+        .rotateDirect = false,
+    };
+  }
+
+  uint32_t framePeriod = (uint32_t)FreshPeriod * 2u;
+  InitialZOffset = (int32_t)(
+      ((uint64_t)durationMs * (uint32_t)Speed + framePeriod - 1u) /
+      framePeriod + 512u);
+  ZOffset = InitialZOffset;
+  GameStartTick = Timer;
+}
+
+static void FourKeys_UpdatePianoPlayback(void) {
+  if (!PianoChartActive) {
+    return;
+  }
+
+  uint32_t elapsed = (uint32_t)(Timer - GameStartTick);
+  uint32_t leadInMs = FourKeys_GetLeadInMs();
+  if (elapsed < leadInMs) {
+    return;
+  }
+  uint32_t playbackMs = elapsed - leadInMs;
+  uint8_t targetTone[2] = {0, 0};
+  for (uint8_t index = 0; index < PianoChartNoteCount; index++) {
+    const PianoRecordedNote_t *note = &PianoChartNotes[index];
+    if (playbackMs >= note->startMs && playbackMs < note->endMs) {
+      targetTone[note->voice] = note->note;
+    }
+  }
+
+  SoundChannel *channels[2] = {&Channel1, &Channel2};
+  for (uint8_t voice = 0; voice < 2; voice++) {
+    if (targetTone[voice] == PianoPlaybackTone[voice]) {
       continue;
     }
-    if (index < 0) {
-      break;
+    if (targetTone[voice] == 0) {
+      Music_StopNote(channels[voice]);
+    } else {
+      Music_PlayNote(channels[voice], targetTone[voice]);
     }
+    PianoPlaybackTone[voice] = targetTone[voice];
+  }
+}
 
-    OLED_DrawLine(OLED1.FrameBufferPtr, projection_table[index][lane].x,
-                  projection_table[index][lane].y,
-                  projection_table[index][lane].x, 32);
+void FourKeys_DrawNote(int32_t startZ, int32_t endZ, uint8_t lane) {
+  if (startZ < endZ) {
+    return;
+  }
+
+  int32_t visibleMin = ZOffset;
+  int32_t visibleMax = ZOffset + 511;
+
+  // 求音符区间与可见区间的交集
+  int32_t zBegin = startZ < visibleMax ? startZ : visibleMax;
+
+  int32_t zEnd = endZ > visibleMin ? endZ : visibleMin;
+
+  // 两个区间没有交集
+  if (zBegin < zEnd) {
+    return;
+  }
+  int32_t indexBegin = projection_table[zBegin - ZOffset][lane].x;
+  int32_t indexEnd = projection_table[zEnd - ZOffset][lane].x;
+  if (indexEnd < indexBegin) {
+    int32_t temp = indexBegin;
+    indexBegin = indexEnd;
+    indexEnd = temp;
+  }
+  for (int32_t z = indexBegin; z <= indexEnd; z++) {
+
+    OLED_DrawLine(OLED1.FrameBufferPtr, z, border[z][lane < 2 ? 0 : 1], z, 32);
   }
 }
 inline void FourKeys_DrawRotate(int32_t startZ, int32_t endZ, uint8_t lane) {
-  bool drawOrNot = true;
-  for (int32_t z = startZ; z >= endZ; z--) {
-    int32_t index = z - ZOffset;
-    if (index >= 512) {
+  (void)lane;
+  FourKeys_DrawNote(startZ, endZ, 1);
+  FourKeys_DrawNote(startZ, endZ, 2);
+  FourKeys_DrawNote(startZ, endZ, 3);
+  FourKeys_DrawNote(startZ, endZ, 0);
+}
+
+static bool FourKeys_AllNotesJudged(void) {
+  for (uint8_t lane = 0; lane < 4; lane++) {
+    if (JudgeNext[lane] < KeySize[lane]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void FourKeys_JudgeInput(void) {
+  if (!StartFlag) {
+    if (GameOver) {
+      for (uint8_t key = 0; key < 7; key++) {
+        if (KeyList[key].keyFlag && KeyList[key].state == KEY_PRESSED) {
+          GameOver = false;
+          Menu_ReturnToMode();
+          FourKeys_ClearKeyFlags();
+          return;
+        }
+      }
+    }
+    return;
+  }
+
+  if (GamePaused) {
+    for (uint8_t key = 2; key <= 4; key++) {
+      if (!KeyList[key].keyFlag || KeyList[key].state != KEY_PRESSED) {
+        continue;
+      }
+
+      if (key == 2) {
+        StartFlag = false;
+        MusicStartFlag = false;
+        GamePaused = false;
+        Music_Stop();
+        Menu_ReturnToSong();
+      } else if (key == 3) {
+        FourKeys_Resume();
+      } else {
+        FourKeys_Init(Speed, PlayingSongName);
+      }
+      FourKeys_ClearKeyFlags();
+      return;
+    }
+    FourKeys_ClearKeyFlags();
+    return;
+  }
+
+  FourKeys_UpdateTimeline();
+  FourKeys_UpdatePianoPlayback();
+
+  for (uint8_t key = 2; key <= 4; key++) {
+    if (KeyList[key].keyFlag && KeyList[key].state == KEY_PRESSED) {
+      GamePaused = true;
+      PauseTick = Timer;
+      Music_Pause();
+      Font_DrawText(&OLED1, 44, 28, "PAUSE");
+      FourKeys_ClearKeyFlags();
+      return;
+    }
+  }
+
+  for (uint8_t lane = 0; lane < 4; lane++) {
+    while (JudgeNext[lane] < KeySize[lane] &&
+           NoteBuffer[lane][JudgeNext[lane]].isChecked) {
+      JudgeNext[lane]++;
+    }
+  }
+
+  if (FourKeys_AllNotesJudged()) {
+    for (uint8_t key = 0; key < 7; key++) {
+      KeyList[key].keyFlag = false;
+    }
+    return;
+  }
+
+  for (uint8_t key = 0; key < 7; key++) {
+    uint8_t lane;
+    if (key == 0) {
+      lane = 1;
+    } else if (key == 1) {
+      lane = 2;
+    } else if (key == 5) {
+      lane = 3;
+    } else if (key == 6) {
+      lane = 0;
+    } else {
       continue;
     }
-    if (index < 0) {
-      break;
+
+    if (!KeyList[key].keyFlag || KeyList[key].state != KEY_PRESSED) {
+      continue;
     }
-    if (drawOrNot) {
-      OLED_DrawLine(OLED1.FrameBufferPtr, projection_table[index][lane].x,
-                    projection_table[index][lane].y,
-                    projection_table[index][lane].x, 32);
+
+    if (JudgeNext[lane] < KeySize[lane]) {
+      uint16_t targetNote = JudgeNext[lane];
+        if (NoteBuffer[lane][targetNote].noteType == ROTATE) {
+          continue;
+        }
+      int32_t diff = FourKeys_GetJudgeDiff(lane, targetNote);
+      int32_t distance = diff < 0 ? -diff : diff;
+      if (distance <= Speed * 2) {
+        if (distance <= Speed) {
+            FourKeys_RecordPerfect();
+        } else {
+          Score.good++;
+          Score.combo++;
+          Score.maxCombo =
+              Score.maxCombo > Score.combo ? Score.maxCombo : Score.combo;
+          Score.totalScore += 100 + (Score.combo >> 2);
+        }
+        NoteBuffer[lane][targetNote].isChecked = true;
+        JudgeNext[lane]++;
+      } else if (diff > Speed * 2) {
+        Score.miss++;
+        Score.combo = 0;
+        NoteBuffer[lane][targetNote].isChecked = true;
+        JudgeNext[lane]++;
+      } else {
+        Score.miss++;
+        Score.combo = 0;
+      }
+    } else {
+      Score.miss++;
+      Score.combo = 0;
     }
-    drawOrNot = !drawOrNot;
+  }
+
+  for (uint8_t key = 0; key < 7; key++) {
+    KeyList[key].keyFlag = false;
+  }
+
+  for (uint8_t lane = 0; lane < 4; lane++) {
+    while (JudgeNext[lane] < KeySize[lane]) {
+      uint16_t note = JudgeNext[lane];
+      if (NoteBuffer[lane][note].isChecked) {
+        JudgeNext[lane]++;
+        continue;
+      }
+
+      int32_t diff = FourKeys_GetJudgeDiff(lane, note);
+      if (NoteBuffer[lane][note].noteType == ROTATE) {
+        int32_t distance = diff < 0 ? -diff : diff;
+        if (MPU6050_RotatingFlag && distance <= Speed * 4) {
+          FourKeys_RecordPerfect();
+          NoteBuffer[lane][note].isChecked = true;
+          JudgeNext[lane]++;
+          continue;
+        }
+        if (diff > Speed * 4) {
+          Score.miss++;
+          Score.combo = 0;
+          NoteBuffer[lane][note].isChecked = true;
+          JudgeNext[lane]++;
+          continue;
+        }
+        break;
+      }
+      if (diff <= Speed * 2) {
+        break;
+      }
+
+      NoteBuffer[lane][note].isChecked = true;
+      Score.miss++;
+      Score.combo = 0;
+      JudgeNext[lane]++;
+    }
   }
 }
 
 void FourKeys_UpdateState() {
-  // 判定逻辑暂时未实现
-  // 显示刷新部分
+  // Advance and draw the game frame.
   if (!StartFlag) {
+    if (GameOver && (uint32_t)(Timer - GameOverBlinkTick) >= 500u) {
+      GameOverBlinkTick = Timer;
+      GameOverTextVisible = !GameOverTextVisible;
+      FourKeys_DrawResult();
+    }
+    return;
+  }
+  if (GamePaused) {
     return;
   }
 
-  /*识别是否结束*/
-  if (ZOffset <= 0) {
+  FourKeys_UpdateTimeline();
+  FourKeys_DrawScore();
+
+  bool playbackFinished;
+  if (PianoChartActive) {
+    uint32_t elapsed = (uint32_t)(Timer - GameStartTick);
+    playbackFinished =
+        elapsed >= FourKeys_GetLeadInMs() + PianoChartDurationMs;
+  } else {
+    playbackFinished = !Channel1.isPlaying && !Channel2.isPlaying;
+  }
+  if (FourKeys_AllNotesJudged() && playbackFinished) {
+    if (!PianoChartActive) {
+      (void)Leaderboard_RecordScore(PlayingSongName, Score.totalScore);
+    }
     StartFlag = false;
     MusicStartFlag = false;
+    GameOver = true;
+    GameOverTextVisible = true;
+    GameOverBlinkTick = Timer;
+    FourKeys_DrawResult();
     OLED_Clear(&OLED1);
     OLED_AddLayer(OLED1.FrameBufferPtr, UILayer);
+    OLED_SendCmd(&OLED1, 0xA5);
+    for (uint8_t key = 0; key < 7; key++) {
+      KeyList[key].keyFlag = false;
+    }
     return;
   }
   // ZOffset是显示区域最远处的Z轴坐标
-  // 判定线处为ZOffset+512
-  ZOffset -= Speed;
-  if (!MusicStartFlag &&
-      ZOffset <= Beat * Size * Speed / FreshPeriod / 2 - 512) {
-    MusicStartFlag = true;
-    Music_Play(PlayingSongName);
-  }
   OLED_Clear(&OLED1);
   for (int lane = 0; lane < 4; lane++) {
     while (KeyFront[lane] + 1 < KeySize[lane] &&
-           FourKeys_GetStartZ(lane,KeyFront[lane] + 1) >=
-               ZOffset) {
+           FourKeys_GetStartZ(lane, KeyFront[lane] + 1) >= ZOffset) {
       KeyFront[lane]++;
     }
     for (int16_t i = KeyFront[lane]; i >= 0; i--) {
-      int32_t startZ = FourKeys_GetStartZ(lane,i);
-      int32_t endZ = FourKeys_GetEndZ(lane,i);
+
+      int32_t startZ = FourKeys_GetStartZ(lane, i);
+      int32_t endZ = FourKeys_GetEndZ(lane, i);
       if (endZ > ZOffset + 512) {
         break;
       }
       switch (NoteBuffer[lane][i].noteType) {
       case HOLD:
       case NOTE: {
+        if (NoteBuffer[lane][i].isChecked) {
+          break;
+        }
         FourKeys_DrawNote(startZ, endZ, lane);
         break;
       }

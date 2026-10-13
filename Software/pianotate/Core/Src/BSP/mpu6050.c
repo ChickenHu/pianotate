@@ -122,11 +122,13 @@ HAL_StatusTypeDef MPU6050_Read(MPU6050_t *dev)
                          data,
                          sizeof(data)) != HAL_OK)
     {
-        /* 运行期间通信失败时，清除所有状态，避免继续使用旧数据。 */
-        MPU6050_Ready = false;
+        /* 保持初始化状态，允许主循环在瞬时总线错误后重试。 */
         MPU6050_ErrorCode = 5;
         MPU6050_AccelDetectedFlag = false;
         MPU6050_RotatingFlag = false;
+        dev->accel_detected = false;
+        dev->rotating = false;
+        dev->quiet_ms = 0;
         return HAL_ERROR;
     }
 
@@ -138,6 +140,7 @@ HAL_StatusTypeDef MPU6050_Read(MPU6050_t *dev)
     dev->gy = (int16_t)((((uint16_t)data[10]) << 8) | data[11]);
     dev->gz = (int16_t)((((uint16_t)data[12]) << 8) | data[13]);
 
+    MPU6050_ErrorCode = 0;
     return HAL_OK;
 }
 
@@ -150,7 +153,7 @@ static int32_t MPU6050_Abs16(int16_t value)
 
 void MPU6050_UpdateFlags(MPU6050_t *dev, uint16_t sample_period_ms)
 {
-    int32_t max_gyro;
+    int32_t gyro_y;
     int64_t accel_squared;
     const int64_t accel_low = (int64_t)13107 * 13107;  /* 0.8 g */
     const int64_t accel_high = (int64_t)19661 * 19661; /* 1.2 g */
@@ -168,25 +171,21 @@ void MPU6050_UpdateFlags(MPU6050_t *dev, uint16_t sample_period_ms)
         (accel_squared < accel_low || accel_squared > accel_high);
     MPU6050_AccelDetectedFlag = dev->accel_detected;
 
-    max_gyro = MPU6050_Abs16(dev->gx);
-    if (MPU6050_Abs16(dev->gy) > max_gyro)
-        max_gyro = MPU6050_Abs16(dev->gy);
-    if (MPU6050_Abs16(dev->gz) > max_gyro)
-        max_gyro = MPU6050_Abs16(dev->gz);
+    gyro_y = MPU6050_Abs16(dev->gy);
 
     /*
-     * 当前陀螺仪量程为 ±500 dps：
-     * 50 dps 约等于 3275 raw，作为开始旋转阈值；
-     * 25 dps 约等于 1638 raw，作为停止旋转阈值。
+    * 当前 GY 量程为 ±500 dps：
+    * 50 dps 约等于 3275 raw，作为开始旋转阈值；
+    * 25 dps 约等于 1638 raw，作为停止旋转阈值。
      */
-    if (!dev->rotating && max_gyro > 3275)
+    if (!dev->rotating && gyro_y > 3275)
     {
         dev->rotating = true;
         dev->quiet_ms = 0;
     }
     else if (dev->rotating)
     {
-        if (max_gyro < 1638)
+        if (gyro_y < 1638)
         {
             if (dev->quiet_ms < 1000)
                 dev->quiet_ms += sample_period_ms;

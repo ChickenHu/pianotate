@@ -2,7 +2,7 @@
 #include "oled.h"
 #include <stdint.h>
 
-//0-1 2-3是长边
+// 0-1 2-3是长边
 const Point projection_table[256 * 2][4] = {
 #embed "../../Inc/Data/projection_table.bin"
 };
@@ -12,6 +12,9 @@ void Animation_SetUI() {
   // border
   //   OLED_DrawLine(UILayer, 0, 0, 127, 0);
   //   OLED_DrawLine(UILayer, 0, 63, 127, 63);
+  for (uint8_t i = 0; i < 8; i++) {
+    UILayer[i * 129] = 0x40;
+  }
   OLED_DrawLine(UILayer, 0, 0, 0, 63);
   OLED_DrawLine(UILayer, 127, 0, 127, 63);
   for (uint16_t i = 0; i < 4; i++) {
@@ -52,7 +55,7 @@ void Animation_Test() {
           projection_table[projection_table_index + size][(i + 1) % 4].y);
     }
   }
-  projection_table_index+=4;
+  projection_table_index += 4;
   projection_table_index %= 512;
   OLED_AddLayer(OLED1.FrameBufferPtr, UILayer);
 }
