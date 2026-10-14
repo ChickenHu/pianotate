@@ -1,13 +1,13 @@
 #include "state.h"
 #include "key.h"
 #include "led.h"
+#include "fourkeys.h"
 #include "menu.h"
 #include "oled.h"
 #include "piano.h"
-#include "stm32f103xb.h"
 #include "stm32f1xx_hal_gpio.h"
+#include "timer.h"
 #include <stdint.h>
-#include <stdlib.h>
 
 void State_Update() {
   static uint32_t lastMenuUpdate = 0;
@@ -37,7 +37,6 @@ void State_Update() {
   if (!gameFramePending &&
       (uint32_t)(now - lastFrameUpdate) >= (uint32_t)FreshPeriod * 2u) {
     lastFrameUpdate = now;
-    // Animation_Test();
     bool gameWasActive = StartFlag;
     Piano_Update();
     FourKeys_UpdateState();

@@ -1,6 +1,5 @@
 #pragma once
 #include "oled.h"
-#include "animation.h"
 #include "music.h"
 #include <limits.h>
 #include <stdint.h>
@@ -38,6 +37,9 @@ extern void Menu_ReturnToSong();
 extern void Menu_ReturnToMode();
 extern void Menu_DrawArrow(int16_t yAxis, int16_t xAxis,
                            OLED_HandleTypeDef *oled);
+extern void Menu_DrawArrowByProcess(int16_t process, int16_t startY,
+                                    int16_t endY, int16_t xAxis,
+                                    OLED_HandleTypeDef *oled);
 /* bitmap uses 8 bytes per column; bit 0 is the top pixel. */
 extern bool Menu_SetSongCover(SongName songName, const uint8_t *bitmap,
                               uint16_t bitmapSize);

@@ -1,5 +1,4 @@
 #include "menu.h"
-#include "animation.h"
 #include "font.h"
 #include "fourkeys.h"
 #include "key.h"

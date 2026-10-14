@@ -1,6 +1,5 @@
 #include "BSP/timer.h"
 #include "BSP/led.h"
-#include "state.h"
 #include <limits.h>
 volatile uint32_t Timer = 0;
 volatile bool Flag1ms=false;

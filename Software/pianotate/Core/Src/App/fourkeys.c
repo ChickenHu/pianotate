@@ -1,5 +1,4 @@
 #include "fourkeys.h"
-#include "animation.h"
 #include "font.h"
 #include "key.h"
 #include "leaderboard.h"
@@ -10,7 +9,6 @@
 #include "piano.h"
 #include <limits.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/_intsup.h>
 // 先z 再x 最后 y
@@ -38,6 +36,15 @@ uint16_t Size = 0;
 uint8_t border[128][2] = {
 #embed "../../Inc/Data/border.bin"
 };
+typedef struct
+{
+  uint8_t x;
+  uint8_t y;
+} Point;
+static const Point ProjectionTable[256 * 2][4] = {
+#embed "../../Inc/Data/projection_table.bin"
+};
+static uint8_t UILayer[129 * 8] = {0};
 
 bool StartFlag = false;
 bool MusicStartFlag = false;
@@ -49,6 +56,36 @@ Note NoteBuffer[4][200] = {}; // 每条轨道上最多150个音符
 Score_t Score;
 
 static uint32_t rng_state = 0x114514u;
+
+static void FourKeys_SetUI(void) {
+  for (uint8_t i = 0; i < 8; i++) {
+    UILayer[i * 129] = 0x40;
+  }
+  OLED_DrawLine(UILayer, 0, 0, 0, 63);
+  OLED_DrawLine(UILayer, 127, 0, 127, 63);
+  for (uint16_t i = 0; i < 4; i++) {
+    OLED_DrawLine(UILayer, ProjectionTable[0][i % 4].x,
+                  ProjectionTable[0][i % 4].y,
+                  ProjectionTable[0][(i + 1) % 4].x,
+                  ProjectionTable[0][(i + 1) % 4].y);
+  }
+  OLED_DrawLine(UILayer, 0, 32, ProjectionTable[0][1].x, 32);
+  OLED_DrawLine(UILayer, 127, 32, ProjectionTable[0][3].x, 32);
+  for (uint16_t i = 0; i < 512; i++) {
+    OLED_DrawPixel(UILayer, ProjectionTable[i][0].x, ProjectionTable[i][0].y);
+    OLED_DrawPixel(UILayer, ProjectionTable[i][1].x, ProjectionTable[i][1].y);
+    OLED_DrawPixel(UILayer, ProjectionTable[i][2].x, ProjectionTable[i][2].y);
+    OLED_DrawPixel(UILayer, ProjectionTable[i][3].x, ProjectionTable[i][3].y);
+  }
+  OLED_DrawLine(UILayer, ProjectionTable[511 - 8][1].x,
+                ProjectionTable[511 - 8][1].y,
+                ProjectionTable[511 - 8][2].x,
+                ProjectionTable[511 - 8][2].y);
+  OLED_DrawLine(UILayer, ProjectionTable[511 - 8][0].x,
+                ProjectionTable[511 - 8][0].y,
+                ProjectionTable[511 - 8][3].x,
+                ProjectionTable[511 - 8][3].y);
+}
 
 static inline uint8_t PRNG4(void) {
   rng_state = rng_state * 1664525u + 1013904223u;
@@ -207,7 +244,7 @@ void FourKeys_Init(int32_t speed, SongName songName) {
   Speed = speed;
   Beat = Music_GetSongBeat(songName == NONE ? FISH : songName);
   PlayingSongName = songName;
-  Animation_SetUI();
+  FourKeys_SetUI();
   uint8_t lane = 0;
   Size = songName == NONE ? 8 : Music_GetSongSize(songName);
   ZOffset = Beat * Size * Speed / FreshPeriod / 2;
@@ -351,8 +388,8 @@ void FourKeys_DrawNote(int32_t startZ, int32_t endZ, uint8_t lane) {
   if (zBegin < zEnd) {
     return;
   }
-  int32_t indexBegin = projection_table[zBegin - ZOffset][lane].x;
-  int32_t indexEnd = projection_table[zEnd - ZOffset][lane].x;
+  int32_t indexBegin = ProjectionTable[zBegin - ZOffset][lane].x;
+  int32_t indexEnd = ProjectionTable[zEnd - ZOffset][lane].x;
   if (indexEnd < indexBegin) {
     int32_t temp = indexBegin;
     indexBegin = indexEnd;

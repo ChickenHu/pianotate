@@ -24,21 +24,52 @@ typedef enum {
     PIANO_STATE_REVIEW,
 } PianoState_t;
 
-static bool Piano_Active = false;
-static PianoState_t Piano_State;
-static PianoRecordedNote_t Piano_Notes[PIANO_RECORD_CAPACITY];
-static uint8_t Piano_NoteCount;
-static uint16_t Piano_DurationMs;
-static uint32_t Piano_RecordStartTick;
-static int8_t Piano_VoiceKey[2];
-static uint8_t Piano_VoiceNoteIndex[2];
-static uint8_t Piano_IgnoredKeys;
-static uint16_t Piano_ExitMotionMs;
-static uint8_t Piano_ReviewSelection;
+typedef struct {
+    bool active;
+    PianoState_t state;
+    PianoRecordedNote_t notes[PIANO_RECORD_CAPACITY];
+    uint8_t noteCount;
+    uint16_t durationMs;
+    uint32_t recordStartTick;
+    int8_t voiceKey[2];
+    uint8_t voiceNoteIndex[2];
+    uint8_t ignoredKeys;
+    uint16_t exitMotionMs;
+    uint8_t reviewSelection;
+    bool reviewAnimating;
+    int16_t reviewAnimationProcess;
+    int16_t reviewAnimationStartY;
+    int16_t reviewAnimationEndY;
+    uint8_t reviewAnimationTarget;
+} PianoContext_t;
+
+static PianoContext_t Piano = {
+    .voiceKey = {-1, -1},
+};
+
+static const int16_t Piano_ReviewAnimationDelta = 16;
+
+static void Piano_StartReviewAnimation(uint8_t target)
+{
+    Piano.reviewAnimating = true;
+    Piano.reviewAnimationProcess = 1;
+    Piano.reviewAnimationTarget = target;
+    Piano.reviewAnimationStartY = Piano.reviewSelection == 0 ? 8 : 40;
+    Piano.reviewAnimationEndY = target == 0 ? 8 : 40;
+}
+
+static void Piano_ReverseReviewAnimation(void)
+{
+    Piano.reviewAnimationProcess = 256 - Piano.reviewAnimationProcess;
+    int16_t temp = Piano.reviewAnimationStartY;
+    Piano.reviewAnimationStartY = Piano.reviewAnimationEndY;
+    Piano.reviewAnimationEndY = temp;
+    Piano.reviewAnimationTarget = Piano.reviewAnimationEndY == 8 ? 0 : 1;
+}
 
 static uint16_t Piano_GetElapsedMs(void)
 {
-    uint32_t elapsed = (uint32_t)(Timer - Piano_RecordStartTick);
+    uint32_t elapsed = (uint32_t)(Timer - Piano.recordStartTick);
     return elapsed > PIANO_RECORD_MAX_DURATION_MS
                ? PIANO_RECORD_MAX_DURATION_MS
                : (uint16_t)elapsed;
@@ -46,27 +77,29 @@ static uint16_t Piano_GetElapsedMs(void)
 
 static void Piano_StopVoice(uint8_t voice, uint16_t endMs)
 {
-    if (Piano_VoiceKey[voice] < 0)
+    if (Piano.voiceKey[voice] < 0)
     {
         return;
     }
 
-    PianoRecordedNote_t *note = &Piano_Notes[Piano_VoiceNoteIndex[voice]];
+    PianoRecordedNote_t *note = &Piano.notes[Piano.voiceNoteIndex[voice]];
     note->endMs = endMs > note->startMs ? endMs : note->startMs + 1u;
-    Piano_VoiceKey[voice] = -1;
+    Piano.voiceKey[voice] = -1;
     Music_StopNote(voice == 0 ? &Channel1 : &Channel2);
 }
 
 static void Piano_CompleteRecording(void)
 {
-    Piano_DurationMs = Piano_GetElapsedMs();
-    Piano_StopVoice(0, Piano_DurationMs);
-    Piano_StopVoice(1, Piano_DurationMs);
+    Piano.durationMs = Piano_GetElapsedMs();
+    Piano_StopVoice(0, Piano.durationMs);
+    Piano_StopVoice(1, Piano.durationMs);
     Music_Stop();
-    Piano_IgnoredKeys = 0;
-    Piano_ExitMotionMs = 0;
-    Piano_ReviewSelection = 0;
-    Piano_State = PIANO_STATE_REVIEW;
+    Piano.ignoredKeys = 0;
+    Piano.exitMotionMs = 0;
+    Piano.reviewSelection = 0;
+    Piano.reviewAnimating = false;
+    Piano.reviewAnimationProcess = 0;
+    Piano.state = PIANO_STATE_REVIEW;
     for (uint8_t key = 0; key < 7; key++)
     {
         KeyList[key].keyFlag = false;
@@ -75,40 +108,40 @@ static void Piano_CompleteRecording(void)
 
 static void Piano_StartNote(uint8_t key, uint16_t elapsed)
 {
-    int8_t voice = Piano_VoiceKey[0] < 0 ? 0
-                   : Piano_VoiceKey[1] < 0 ? 1
+    int8_t voice = Piano.voiceKey[0] < 0 ? 0
+                   : Piano.voiceKey[1] < 0 ? 1
                                            : -1;
-    if (voice < 0 || Piano_NoteCount >= PIANO_RECORD_CAPACITY)
+    if (voice < 0 || Piano.noteCount >= PIANO_RECORD_CAPACITY)
     {
-        Piano_IgnoredKeys |= (uint8_t)(1u << key);
+        Piano.ignoredKeys |= (uint8_t)(1u << key);
         return;
     }
 
-    uint8_t noteIndex = Piano_NoteCount++;
-    Piano_Notes[noteIndex] = (PianoRecordedNote_t){
+    uint8_t noteIndex = Piano.noteCount++;
+    Piano.notes[noteIndex] = (PianoRecordedNote_t){
         .startMs = elapsed,
         .endMs = elapsed + 1u,
         .note = Piano_NoteMap[key],
         .voice = (uint8_t)voice,
     };
-    Piano_VoiceKey[(uint8_t)voice] = (int8_t)key;
-    Piano_VoiceNoteIndex[(uint8_t)voice] = noteIndex;
+    Piano.voiceKey[(uint8_t)voice] = (int8_t)key;
+    Piano.voiceNoteIndex[(uint8_t)voice] = noteIndex;
     Music_PlayNote(voice == 0 ? &Channel1 : &Channel2, Piano_NoteMap[key]);
 }
 
 static void Piano_UpdateRecording(void)
 {
     uint16_t elapsed = Piano_GetElapsedMs();
-    Piano_DurationMs = elapsed;
+    Piano.durationMs = elapsed;
 
     int32_t gyroY = MPU6050_Device.gy;
     if (MPU6050_Ready && (gyroY > 10000 || gyroY < -10000))
     {
-        if (Piano_ExitMotionMs < 1000u)
+        if (Piano.exitMotionMs < 1000u)
         {
-            Piano_ExitMotionMs++;
+            Piano.exitMotionMs++;
         }
-        if (Piano_ExitMotionMs >= 150u)
+        if (Piano.exitMotionMs >= 150u)
         {
             Piano_CompleteRecording();
             return;
@@ -116,7 +149,7 @@ static void Piano_UpdateRecording(void)
     }
     else
     {
-        Piano_ExitMotionMs = 0;
+        Piano.exitMotionMs = 0;
     }
 
     if (elapsed >= PIANO_RECORD_MAX_DURATION_MS)
@@ -133,15 +166,15 @@ static void Piano_UpdateRecording(void)
         }
 
         uint8_t keyMask = (uint8_t)(1u << key);
-        if (Piano_IgnoredKeys & keyMask)
+        if (Piano.ignoredKeys & keyMask)
         {
-            Piano_IgnoredKeys &= (uint8_t)~keyMask;
+            Piano.ignoredKeys &= (uint8_t)~keyMask;
         }
         else
         {
             for (uint8_t voice = 0; voice < 2; voice++)
             {
-                if (Piano_VoiceKey[voice] == (int8_t)key)
+                if (Piano.voiceKey[voice] == (int8_t)key)
                 {
                     Piano_StopVoice(voice, elapsed);
                     break;
@@ -165,24 +198,44 @@ static void Piano_UpdateReviewInput(void)
 {
     if (KeyList[2].keyFlag && KeyList[2].state == KEY_PRESSED)
     {
-        Piano_ReviewSelection = 0;
+        if (Piano.reviewAnimating)
+        {
+            if (Piano.reviewAnimationEndY > Piano.reviewAnimationStartY)
+            {
+                Piano_ReverseReviewAnimation();
+            }
+        }
+        else if (Piano.reviewSelection != 0)
+        {
+            Piano_StartReviewAnimation(0);
+        }
     }
     if (KeyList[3].keyFlag && KeyList[3].state == KEY_PRESSED)
     {
-        Piano_ReviewSelection = 1;
+        if (Piano.reviewAnimating)
+        {
+            if (Piano.reviewAnimationEndY < Piano.reviewAnimationStartY)
+            {
+                Piano_ReverseReviewAnimation();
+            }
+        }
+        else if (Piano.reviewSelection != 1)
+        {
+            Piano_StartReviewAnimation(1);
+        }
     }
     if (KeyList[4].keyFlag && KeyList[4].state == KEY_PRESSED)
     {
-        if (Piano_ReviewSelection == 0)
+        if (Piano.reviewSelection == 0)
         {
-            Piano_Active = false;
+            Piano.active = false;
             Menu_ReturnToMode();
         }
-        else if (Piano_NoteCount > 0)
+        else if (Piano.noteCount > 0)
         {
-            Piano_Active = false;
-            FourKeys_InitFromPiano(16, Piano_Notes, Piano_NoteCount,
-                                   Piano_DurationMs);
+            Piano.active = false;
+            FourKeys_InitFromPiano(16, Piano.notes, Piano.noteCount,
+                                   Piano.durationMs);
         }
     }
     for (uint8_t key = 0; key < 7; key++)
@@ -195,26 +248,28 @@ static void Piano_UpdateReviewInput(void)
 void Piano_Init(void)
 {
     Music_Stop();
-    Piano_NoteCount = 0;
-    Piano_DurationMs = 0;
-    Piano_RecordStartTick = Timer;
-    Piano_VoiceKey[0] = -1;
-    Piano_VoiceKey[1] = -1;
-    Piano_IgnoredKeys = 0;
-    Piano_ExitMotionMs = 0;
-    Piano_ReviewSelection = 0;
-    Piano_State = PIANO_STATE_RECORDING;
-    Piano_Active = true;
+    Piano.noteCount = 0;
+    Piano.durationMs = 0;
+    Piano.recordStartTick = Timer;
+    Piano.voiceKey[0] = -1;
+    Piano.voiceKey[1] = -1;
+    Piano.ignoredKeys = 0;
+    Piano.exitMotionMs = 0;
+    Piano.reviewSelection = 0;
+    Piano.reviewAnimating = false;
+    Piano.reviewAnimationProcess = 0;
+    Piano.state = PIANO_STATE_RECORDING;
+    Piano.active = true;
 }
 
 void Piano_RecordUpdate(void)
 {
-    if (!Piano_Active)
+    if (!Piano.active)
     {
         return;
     }
 
-    if (Piano_State == PIANO_STATE_RECORDING)
+    if (Piano.state == PIANO_STATE_RECORDING)
     {
         Piano_UpdateRecording();
     }
@@ -226,36 +281,55 @@ void Piano_RecordUpdate(void)
 
 void Piano_Update(void)
 {
-    if (!Piano_Active)
+    if (!Piano.active)
     {
         return;
     }
 
-    if (Piano_State == PIANO_STATE_REVIEW)
+    if (Piano.state == PIANO_STATE_REVIEW)
     {
         OLED_Clear(&OLED1);
-        Menu_DrawArrow(Piano_ReviewSelection == 0 ? 8 : 40, 4, &OLED1);
+        if (Piano.reviewAnimating)
+        {
+            Piano.reviewAnimationProcess += Piano_ReviewAnimationDelta;
+            if (Piano.reviewAnimationProcess > 256)
+            {
+                Piano.reviewAnimating = false;
+                Piano.reviewSelection = Piano.reviewAnimationTarget;
+                Piano.reviewAnimationProcess = 0;
+            }
+        }
+        if (Piano.reviewAnimating)
+        {
+            Menu_DrawArrowByProcess(Piano.reviewAnimationProcess,
+                                    Piano.reviewAnimationStartY,
+                                    Piano.reviewAnimationEndY, 4, &OLED1);
+        }
+        else
+        {
+            Menu_DrawArrow(Piano.reviewSelection == 0 ? 8 : 40, 4, &OLED1);
+        }
         Font_DrawText(&OLED1, 32, 8, "Exit");
         Font_DrawText(&OLED1, 32, 40, "Play");
 
         char countText[6] = {
-            (char)('0' + Piano_NoteCount / 10u),
-            (char)('0' + Piano_NoteCount % 10u),
+            (char)('0' + Piano.noteCount / 10u),
+            (char)('0' + Piano.noteCount % 10u),
             '/', '6', '4', '\0',
         };
         OLED_Clear(&OLED2);
         Font_DrawText(&OLED2, 0, 0, "NOTES");
         Font_DrawText(&OLED2, 42, 0, countText);
         Font_DrawText(&OLED2, 0, 24,
-                      Piano_NoteCount == 0 ? "NO NOTES" : "READY");
+                      Piano.noteCount == 0 ? "NO NOTES" : "READY");
         return;
     }
 
     OLED_Clear(&OLED1);
     Font_DrawText(&OLED1, 32, 28, "PIANO REC");
     char countText[6] = {
-        (char)('0' + Piano_NoteCount / 10u),
-        (char)('0' + Piano_NoteCount % 10u),
+        (char)('0' + Piano.noteCount / 10u),
+        (char)('0' + Piano.noteCount % 10u),
         '/', '6', '4', '\0',
     };
     OLED_Clear(&OLED2);
@@ -263,9 +337,9 @@ void Piano_Update(void)
     Font_DrawText(&OLED2, 24, 0, countText);
     for (uint8_t voice = 0; voice < 2; voice++)
     {
-        if (Piano_VoiceKey[voice] >= 0)
+        if (Piano.voiceKey[voice] >= 0)
         {
-            uint8_t key = (uint8_t)Piano_VoiceKey[voice];
+            uint8_t key = (uint8_t)Piano.voiceKey[voice];
             Font_DrawText(&OLED2, voice == 0 ? 0 : 64, 28,
                           Piano_NoteName[key]);
         }

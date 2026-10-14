@@ -29,8 +29,6 @@
 #include "BSP/led.h"
 #include "BSP/mpu6050.h"
 #include "BSP/timer.h"
-#include "App/animation.h"
-#include "App/fourkeys.h"
 #include "App/menu.h"
 #include "App/music.h"
 #include "App/state.h"
