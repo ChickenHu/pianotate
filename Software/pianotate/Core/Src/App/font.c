@@ -69,17 +69,20 @@ static const uint8_t Font_Digit[10][5] = {
     {0x36, 0x49, 0x49, 0x49, 0x36}, /* 8 */
     {0x06, 0x49, 0x49, 0x29, 0x1E}  /* 9 */
 };
+static const struct {
+    char character;
+    uint8_t glyph[5];
+} Font_Symbol[] = {
+    {' ', {0x00, 0x00, 0x00, 0x00, 0x00}},
+    {'-', {0x00, 0x00, 0x08, 0x00, 0x00}},
+    {'.', {0x00, 0x60, 0x60, 0x00, 0x00}},
+    {'!', {0x00, 0x00, 0x5F, 0x00, 0x00}}
+};
+
 static const uint8_t *Font_GetGlyph(char character)
 {
-    static const uint8_t space[5] = {
-        0x00, 0x00, 0x00, 0x00, 0x00
-    };
-
     static const uint8_t unknown[5] = {
         0x02, 0x01, 0x51, 0x09, 0x06
-    };
-    static const uint8_t minus[5] = {
-        0x00, 0x00, 0x08, 0x00, 0x00
     };
 
     if (character >= 'A' && character <= 'Z') {
@@ -94,12 +97,10 @@ static const uint8_t *Font_GetGlyph(char character)
         return Font_Digit[character - '0'];
     }
 
-    if (character == ' ') {
-        return space;
-    }
-
-    if (character == '-') {
-        return minus;
+    for (size_t index = 0; index < sizeof(Font_Symbol) / sizeof(Font_Symbol[0]); index++) {
+        if (character == Font_Symbol[index].character) {
+            return Font_Symbol[index].glyph;
+        }
     }
 
     return unknown;

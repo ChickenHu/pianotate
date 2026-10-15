@@ -111,22 +111,15 @@ int main(void)
   MX_TIM3_Init();
   MX_I2C2_Init();
   OLED_Init();
-  /*
-   * 按原理图固定连接：
-   *   J2 SCL/SDA -> I2C2，即 PB10/PB11；
-   *   AD0 由 10 kΩ 下拉到 GND，地址固定为 0x68（HAL 地址 0xD0）。
-   */
+  
   HAL_Delay(20);
   (void)MPU6050_Init(&MPU6050_Device, &hi2c2, MPU6050_ADDR);
   Menu_Init();
-  // FourKeys_Init(8, BADAPPLE);
   MenuState.isActivate = true;
-  // Menu_Test();
   while ((uint32_t)(Timer - startupAnimationStart) < 5000u) {
   }
   LED_BreathingStop();
   MenuState.page = MENU_PAGE_MODE;
-  // char test[]={'a','B','\0'};
   /* USER CODE END 2 */
 
   uint32_t last_mpu_tick = Timer;
@@ -138,8 +131,6 @@ int main(void)
     /* USER CODE BEGIN 3 */
     if (Flag1ms) {
         Flag1ms = 0;
-
-        /* 每 10 ms 读取一次传感器，约 100 Hz。 */
         uint32_t now = Timer;
         uint32_t sample_elapsed = now - last_mpu_tick;
         if (MPU6050_Ready && sample_elapsed >= 10u) {
@@ -151,7 +142,6 @@ int main(void)
             MPU6050_UpdateFlags(&MPU6050_Device, elapsed_ms);
           }
         }
-
       State_Update();
     }
   }

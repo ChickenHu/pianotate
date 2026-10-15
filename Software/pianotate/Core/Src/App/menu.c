@@ -2,7 +2,7 @@
 #include "font.h"
 #include "fourkeys.h"
 #include "key.h"
-#include "leaderboard.h"
+#include "rank.h"
 #include "oled.h"
 #include "piano.h"
 #include <stdint.h>
@@ -32,7 +32,7 @@ static int16_t Menu_GetArrowY(int16_t process, int8_t startY, int8_t endY) {
 }
 
 void Menu_Init() {
-  Leaderboard_Init();
+  Rank_Init();
   MenuState = (MenuState_t){
       .isActivate = false,
       .page = MENU_PAGE_MODE,
@@ -61,6 +61,7 @@ void Menu_ReturnToMode() {
   MenuState.animationProcess = 0;
   MenuState.onPageSwitching = false;
   OLED_Clear(&OLED2);
+  OLED_Clear(&OLED1);
 }
 
 bool Menu_SetSongCover(SongName songName, const uint8_t *bitmap,
@@ -108,10 +109,10 @@ static void Menu_DrawSongInfo(void) {
     }
   }
   Font_DrawText(&OLED2, 64, 0, songTitle);
-  for (uint8_t rank = 0; rank < LEADERBOARD_ENTRIES; rank++) {
+  for (uint8_t rank = 0; rank < RANK_ENTRIES; rank++) {
     char rankText[3] = {'0', (char)('1' + rank), '\0'};
     char scoreText[11];
-    Menu_FormatScore(Leaderboard_GetScore(songName, rank), scoreText);
+    Menu_FormatScore(Rank_GetScore(songName, rank), scoreText);
     uint8_t y = (uint8_t)((rank + 1u) * 16u);
     Font_DrawText(&OLED2, 64, y, rankText);
     Font_DrawText(&OLED2, 82, y, scoreText);
@@ -177,6 +178,7 @@ static void Menu_DrawModePage(void) {
   }
   Font_DrawText(&OLED1, 32, 8, "Four Keys");
   Font_DrawText(&OLED1, 32, 48, "Piano");
+  OLED_Clear(&OLED2);
 }
 
 static void Menu_DrawSongPage(void) {

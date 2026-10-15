@@ -1,23 +1,23 @@
-#include "leaderboard.h"
+#include "rank.h"
 #include "stm32f1xx_hal_flash.h"
 #include "stm32f1xx_hal_flash_ex.h"
 #include <string.h>
 
-#define LEADERBOARD_MAGIC 0x504E4C42u
-#define LEADERBOARD_VERSION 1u
-#define LEADERBOARD_SONGS 2u
+#define RANK_MAGIC 0x504E4C42u
+#define RANK_VERSION 1u
+#define RANK_SONGS 2u
 
-extern uint32_t _leaderboard_flash_start;
+extern uint32_t _rank_flash_start;
 
 typedef struct {
   uint32_t magic;
   uint32_t version;
-  uint32_t scores[LEADERBOARD_SONGS][LEADERBOARD_ENTRIES];
-} LeaderboardRecord_t;
+  uint32_t scores[RANK_SONGS][RANK_ENTRIES];
+} RankRecord_t;
 
-static uint32_t Scores[LEADERBOARD_SONGS][LEADERBOARD_ENTRIES];
+static uint32_t Scores[RANK_SONGS][RANK_ENTRIES];
 
-static int8_t Leaderboard_GetSongIndex(SongName songName) {
+static int8_t Rank_GetSongIndex(SongName songName) {
   if (songName == BADAPPLE) {
     return 0;
   }
@@ -27,54 +27,54 @@ static int8_t Leaderboard_GetSongIndex(SongName songName) {
   return -1;
 }
 
-void Leaderboard_Init(void) {
-  uint32_t address = (uint32_t)(uintptr_t)&_leaderboard_flash_start;
-  LeaderboardRecord_t record;
+void Rank_Init(void) {
+  uint32_t address = (uint32_t)(uintptr_t)&_rank_flash_start;
+  RankRecord_t record;
   memcpy(&record, (const void *)(uintptr_t)address, sizeof(record));
 
-  if (record.magic != LEADERBOARD_MAGIC ||
-      record.version != LEADERBOARD_VERSION) {
+  if (record.magic != RANK_MAGIC ||
+      record.version != RANK_VERSION) {
     memset(Scores, 0, sizeof(Scores));
     return;
   }
   memcpy(Scores, record.scores, sizeof(Scores));
 }
 
-uint32_t Leaderboard_GetScore(SongName songName, uint8_t rank) {
-  int8_t songIndex = Leaderboard_GetSongIndex(songName);
-  if (songIndex < 0 || rank >= LEADERBOARD_ENTRIES) {
+uint32_t Rank_GetScore(SongName songName, uint8_t rank) {
+  int8_t songIndex = Rank_GetSongIndex(songName);
+  if (songIndex < 0 || rank >= RANK_ENTRIES) {
     return 0;
   }
   return Scores[(uint8_t)songIndex][rank];
 }
 
-bool Leaderboard_RecordScore(SongName songName, uint32_t score) {
-  int8_t songIndex = Leaderboard_GetSongIndex(songName);
+bool Rank_RecordScore(SongName songName, uint32_t score) {
+  int8_t songIndex = Rank_GetSongIndex(songName);
   if (songIndex < 0) {
     return false;
   }
 
   uint32_t *scores = Scores[(uint8_t)songIndex];
   uint8_t rank = 0;
-  while (rank < LEADERBOARD_ENTRIES && score <= scores[rank]) {
+  while (rank < RANK_ENTRIES && score <= scores[rank]) {
     rank++;
   }
-  if (rank >= LEADERBOARD_ENTRIES) {
+  if (rank >= RANK_ENTRIES) {
     return false;
   }
 
-  for (uint8_t index = LEADERBOARD_ENTRIES - 1; index > rank; index--) {
+  for (uint8_t index = RANK_ENTRIES - 1; index > rank; index--) {
     scores[index] = scores[index - 1];
   }
   scores[rank] = score;
 
-  LeaderboardRecord_t record = {
-      .magic = LEADERBOARD_MAGIC,
-      .version = LEADERBOARD_VERSION,
+  RankRecord_t record = {
+      .magic = RANK_MAGIC,
+      .version = RANK_VERSION,
   };
   memcpy(record.scores, Scores, sizeof(Scores));
 
-  uint32_t address = (uint32_t)(uintptr_t)&_leaderboard_flash_start;
+  uint32_t address = (uint32_t)(uintptr_t)&_rank_flash_start;
   FLASH_EraseInitTypeDef erase = {
       .TypeErase = FLASH_TYPEERASE_PAGES,
       .PageAddress = address,
@@ -99,7 +99,7 @@ bool Leaderboard_RecordScore(SongName songName, uint32_t score) {
   }
   if (status == HAL_OK) {
     status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, address,
-                               LEADERBOARD_MAGIC);
+                               RANK_MAGIC);
   }
   HAL_FLASH_Lock();
   return status == HAL_OK;

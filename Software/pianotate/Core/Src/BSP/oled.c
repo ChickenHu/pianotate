@@ -101,7 +101,7 @@ void OLED_FreshFrame(OLED_HandleTypeDef *oled) {
     oled->nextPage = (page + 1u) & 0x07u;
   }
 }
-bool OLED_HasPendingChanges(const OLED_HandleTypeDef *oled) {
+bool OLED_PendingChanges(const OLED_HandleTypeDef *oled) {
   for (uint8_t page = 0; page < 8; page++) {
     uint16_t pageOffset = (page << 7) | page;
     if (memcmp(&oled->FrameBufferPtr[pageOffset],

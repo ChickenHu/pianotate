@@ -46,10 +46,10 @@ void LED_PWMInterrupt(void) {
 
 		uint32_t sequencePosition = elapsed * 7u;
 		uint8_t activeLED = (uint8_t)(sequencePosition / 5000u);
-		uint32_t fadePosition = sequencePosition % 5000u;
-		uint32_t brightness = fadePosition <= 2500u
-								  ? fadePosition * 16u / 2500u
-								  : (5000u - fadePosition) * 16u / 2500u;
+		uint32_t breathPosition = sequencePosition % 5000u;
+		uint32_t brightness = breathPosition <= 2500u
+								  ? breathPosition * 16u / 2500u
+								  : (5000u - breathPosition) * 16u / 2500u;
 		for (uint8_t index = 0; index < 7; index++) {
 			LED_Brightness[index] = index == activeLED ? (uint8_t)brightness : 0;
 		}

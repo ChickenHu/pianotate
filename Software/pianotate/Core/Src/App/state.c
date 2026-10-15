@@ -41,10 +41,10 @@ void State_Update() {
     Piano_Update();
     FourKeys_UpdateState();
     gameFramePending =
-        gameWasActive && OLED_HasPendingChanges(&OLED1);
+        gameWasActive && OLED_PendingChanges(&OLED1);
   }
-  bool oled1Pending = OLED_HasPendingChanges(&OLED1);
-  bool oled2Pending = OLED_HasPendingChanges(&OLED2);
+  bool oled1Pending = OLED_PendingChanges(&OLED1);
+  bool oled2Pending = OLED_PendingChanges(&OLED2);
   if (oled1Pending && oled2Pending) {
     OLED_HandleTypeDef *oled = refreshOLED1Next ? &OLED1 : &OLED2;
     OLED_UpdateState(oled);
@@ -56,7 +56,7 @@ void State_Update() {
     OLED_UpdateState(&OLED2);
     refreshOLED1Next = true;
   }
-  if (gameFramePending && !OLED_HasPendingChanges(&OLED1)) {
+  if (gameFramePending && !OLED_PendingChanges(&OLED1)) {
     gameFramePending = false;
   }
 }

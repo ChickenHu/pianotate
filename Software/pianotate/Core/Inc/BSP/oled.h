@@ -29,7 +29,7 @@ extern void OLED_Clear(OLED_HandleTypeDef *oled);
 
 extern void OLED_FreshFrame(OLED_HandleTypeDef *oled);
 
-extern bool OLED_HasPendingChanges(const OLED_HandleTypeDef *oled);
+extern bool OLED_PendingChanges(const OLED_HandleTypeDef *oled);
 
 extern void OLED_DrawPixel(uint8_t *frameBuffer, uint8_t x, uint8_t y);
 

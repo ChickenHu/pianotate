@@ -153,7 +153,8 @@ static int32_t MPU6050_Abs16(int16_t value)
 
 void MPU6050_UpdateFlags(MPU6050_t *dev, uint16_t sample_period_ms)
 {
-    int32_t gyro_y;
+    int32_t gyro_max;
+    int32_t g_abs;
     int64_t accel_squared;
     const int64_t accel_low = (int64_t)13107 * 13107;  /* 0.8 g */
     const int64_t accel_high = (int64_t)19661 * 19661; /* 1.2 g */
@@ -171,21 +172,31 @@ void MPU6050_UpdateFlags(MPU6050_t *dev, uint16_t sample_period_ms)
         (accel_squared < accel_low || accel_squared > accel_high);
     MPU6050_AccelDetectedFlag = dev->accel_detected;
 
-    gyro_y = MPU6050_Abs16(dev->gy);
+    /*
+     * 同时判断 GX、GY、GZ 三个轴向，任意一个角速度过大即认为在旋转。
+     * 取三者绝对值的最大值作为判定依据。
+     */
+    gyro_max = MPU6050_Abs16(dev->gx);
+    g_abs = MPU6050_Abs16(dev->gy);
+    if (g_abs > gyro_max)
+        gyro_max = g_abs;
+    g_abs = MPU6050_Abs16(dev->gz);
+    if (g_abs > gyro_max)
+        gyro_max = g_abs;
 
     /*
-    * 当前 GY 量程为 ±500 dps：
-    * 50 dps 约等于 3275 raw，作为开始旋转阈值；
-    * 25 dps 约等于 1638 raw，作为停止旋转阈值。
+     * 当前陀螺仪量程为 ±500 dps，灵敏度为 65.5 LSB/dps：
+     * 30 dps 约等于 2000 raw，作为开始旋转阈值（原 50 dps/3275）；
+     * 15 dps 约等于 1000 raw，作为停止旋转阈值（原 25 dps/1638）。
      */
-    if (!dev->rotating && gyro_y > 3275)
+    if (!dev->rotating && gyro_max > 2000)
     {
         dev->rotating = true;
         dev->quiet_ms = 0;
     }
     else if (dev->rotating)
     {
-        if (gyro_y < 1638)
+        if (gyro_max < 1000)
         {
             if (dev->quiet_ms < 1000)
                 dev->quiet_ms += sample_period_ms;
