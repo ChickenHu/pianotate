@@ -14,7 +14,7 @@ const uint8_t LUT[256] = {
 const int16_t PageLayout3[3] = {12, 28, 44};
 
 MenuState_t MenuState = {false, MENU_PAGE_MODE, 0, 1, 1, 1, 1};
-static const uint8_t *SongCovers[4];
+static const uint8_t *SongCovers[NONE];
 
 static int16_t Menu_GetArrowY(int16_t process, int8_t startY, int8_t endY) {
   int16_t span = (endY - startY);
@@ -33,6 +33,9 @@ static int16_t Menu_GetArrowY(int16_t process, int8_t startY, int8_t endY) {
 
 void Menu_Init() {
   Rank_Init();
+  Menu_SetSongCover(BADAPPLE, BadAppleCover, MENU_SONG_COVER_BYTES);
+  Menu_SetSongCover(BIG_FISH, BigFishCover, MENU_SONG_COVER_BYTES);
+  Menu_SetSongCover(IREMEMBER, IRememberCover, MENU_SONG_COVER_BYTES);
   MenuState = (MenuState_t){
       .isActivate = false,
       .page = MENU_PAGE_MODE,
@@ -60,13 +63,15 @@ void Menu_ReturnToMode() {
   MenuState.isAnimating = false;
   MenuState.animationProcess = 0;
   MenuState.onPageSwitching = false;
+  OLED_SendCmd(&OLED1, 0xA4);
   OLED_Clear(&OLED2);
   OLED_Clear(&OLED1);
+  OLED_FreshFrame(&OLED1);
 }
 
 bool Menu_SetSongCover(SongName songName, const uint8_t *bitmap,
                        uint16_t bitmapSize) {
-  if (songName < BADAPPLE || songName > NONE ||
+  if (songName < BADAPPLE || songName > IREMEMBER ||
   (bitmap != NULL && bitmapSize != MENU_SONG_COVER_BYTES)) {
     return false;
   }
@@ -90,32 +95,38 @@ static void Menu_FormatScore(uint32_t score, char output[11]) {
 
 static void Menu_DrawSongInfo(void) {
   SongName songName = (SongName)MenuState.songChoose;
-  const char *songTitle = "ROTATE TEST";
+  const char *songTitle;
   if (songName == BADAPPLE) {
     songTitle = "Bad Apple!";
-  } else if (songName == FISH) {
-    songTitle = "Fish";
+  } else if (songName == BIG_FISH) {
+    songTitle = "Big Fish";
+  } else if (songName == IREMEMBER) {
+    songTitle = "I Remember";
   }
 
   OLED_Clear(&OLED2);
   const uint8_t *cover = SongCovers[songName];
   if (cover != NULL) {
-    for (uint8_t x = 0; x < MENU_SONG_COVER_WIDTH; x++) {
-      for (uint8_t y = 0; y < MENU_SONG_COVER_HEIGHT; y++) {
-        if (cover[x * 8u + (y >> 3)] & (1u << (y & 7u))) {
-          OLED_DrawPixel(OLED2.FrameBufferPtr, x + 2u, y + 2u);
+    for (uint8_t page = 0; page < MENU_SONG_COVER_HEIGHT / 8u; page++) {
+      for (uint8_t x = 0; x < MENU_SONG_COVER_WIDTH; x++) {
+        uint8_t column = cover[page * MENU_SONG_COVER_WIDTH + x];
+        for (uint8_t bit = 0; bit < 8u; bit++) {
+          if (column & (1u << bit)) {
+            OLED_DrawPixel(OLED2.FrameBufferPtr, x,
+                           page * 8u + bit);
+          }
         }
       }
     }
   }
-  Font_DrawText(&OLED2, 64, 0, songTitle);
+  Font_DrawText(&OLED2, 66, 0, songTitle);
   for (uint8_t rank = 0; rank < RANK_ENTRIES; rank++) {
     char rankText[3] = {'0', (char)('1' + rank), '\0'};
     char scoreText[11];
     Menu_FormatScore(Rank_GetScore(songName, rank), scoreText);
     uint8_t y = (uint8_t)((rank + 1u) * 16u);
-    Font_DrawText(&OLED2, 64, y, rankText);
-    Font_DrawText(&OLED2, 82, y, scoreText);
+    Font_DrawText(&OLED2, 66, y, rankText);
+    Font_DrawText(&OLED2, 84, y, scoreText);
   }
 }
 
@@ -199,8 +210,8 @@ static void Menu_DrawSongPage(void) {
     Menu_DrawArrow(PageLayout3[MenuState.songChoose - 1], 4, &OLED1);
   }
   Font_DrawText(&OLED1, 32, PageLayout3[0], "Bad Apple!");
-  Font_DrawText(&OLED1, 32, PageLayout3[1], "fish");
-  Font_DrawText(&OLED1, 32, PageLayout3[2], "ROTATE TEST");
+  Font_DrawText(&OLED1, 32, PageLayout3[1], "Big Fish");
+  Font_DrawText(&OLED1, 32, PageLayout3[2], "I Remember");
   Menu_DrawSongInfo();
 }
 
@@ -237,7 +248,7 @@ void Menu_StateUpdate() {
   const uint8_t backKeys[] = {0, 1, 5, 6};
   for (uint8_t key = 0; key < sizeof(backKeys); key++) {
     uint8_t keyIdx = backKeys[key];
-    if (KeyList[keyIdx].keyFlag && KeyList[keyIdx].state == KEY_PRESSED) {
+    if (KeyList[keyIdx].pressedEventPending) {
       backPressed = true;
       break;
     }
@@ -256,7 +267,7 @@ void Menu_StateUpdate() {
 
   switch (MenuState.page) {
   case MENU_PAGE_MODE: {
-    if (KeyList[2].keyFlag && KeyList[2].state == KEY_PRESSED &&
+    if (KeyList[2].pressedEventPending &&
       !MenuState.isAnimating &&
         MenuState.modeChoose == 2) { // 开始动画，从2到1
       // MenuState.modeChoose = 1;
@@ -265,7 +276,7 @@ void Menu_StateUpdate() {
       MenuState.startY = 48;
       MenuState.endY = 8;
       MenuState.target = 1;
-    } else if (KeyList[2].keyFlag && KeyList[2].state == KEY_PRESSED &&
+    } else if (KeyList[2].pressedEventPending &&
            MenuState.isAnimating &&
                MenuState.target == 2) { // 打断动画，不修改start/end
       // MenuState.modeChoose = 1;
@@ -274,7 +285,7 @@ void Menu_StateUpdate() {
       MenuState.startY = 48;
       MenuState.endY = 8;
       MenuState.target = 1;
-    } else if (KeyList[3].keyFlag && KeyList[3].state == KEY_PRESSED &&
+    } else if (KeyList[3].pressedEventPending &&
            !MenuState.isAnimating &&
                MenuState.modeChoose == 1) { // 开始动画，从1到2
       // MenuState.modeChoose = 1;
@@ -283,7 +294,7 @@ void Menu_StateUpdate() {
       MenuState.startY = 8;
       MenuState.endY = 48;
       MenuState.target = 2;
-    } else if (KeyList[3].keyFlag && KeyList[3].state == KEY_PRESSED &&
+    } else if (KeyList[3].pressedEventPending &&
            MenuState.isAnimating &&
                MenuState.target == 1) {
       // MenuState.modeChoose = 1;
@@ -293,7 +304,7 @@ void Menu_StateUpdate() {
       MenuState.endY = 48;
       MenuState.target = 2;
     }
-    if (KeyList[4].keyFlag && KeyList[4].state == KEY_PRESSED) {
+    if (KeyList[4].pressedEventPending) {
       if (MenuState.modeChoose == 1) {
         MenuState.page = MENU_PAGE_SONG;
         MenuState.isAnimating = 0;
@@ -316,7 +327,7 @@ void Menu_StateUpdate() {
     if (KeyList[4].state == KEY_RELEASED && MenuState.onPageSwitching) {
       MenuState.onPageSwitching = false;
     }
-    if (KeyList[2].keyFlag && KeyList[2].state == KEY_PRESSED) { // 上移
+    if (KeyList[2].pressedEventPending) { // 上移
       // MenuState.modeChoose = 1;
       if (MenuState.isAnimating) {
         if (MenuState.target > MenuState.songChoose) { // 正在下移
@@ -337,7 +348,7 @@ void Menu_StateUpdate() {
         }
       }
     }
-    if (KeyList[3].keyFlag && KeyList[3].state == KEY_PRESSED) { // 下移
+    if (KeyList[3].pressedEventPending) { // 下移
       // MenuState.modeChoose = 1;
       if (MenuState.isAnimating) {
         if (MenuState.target < MenuState.songChoose) { // 正在上移
@@ -358,13 +369,14 @@ void Menu_StateUpdate() {
         }
       }
     }
-    if (!MenuState.onPageSwitching && KeyList[4].keyFlag &&
-      KeyList[4].state == KEY_PRESSED) {
-      MenuState.page = MENU_PAGE_SPEED;
-      MenuState.isAnimating = 0;
-      MenuState.speedChoose = 1;
-      MenuState.animationProcess = 0;
-      MenuState.onPageSwitching = true;
+    if (!MenuState.onPageSwitching && KeyList[4].pressedEventPending) {
+      if (Music_GetSongSize((SongName)MenuState.songChoose) != 0) {
+        MenuState.page = MENU_PAGE_SPEED;
+        MenuState.isAnimating = 0;
+        MenuState.speedChoose = 1;
+        MenuState.animationProcess = 0;
+        MenuState.onPageSwitching = true;
+      }
     }
     Menu_DrawSongPage();
     break;
@@ -373,7 +385,7 @@ void Menu_StateUpdate() {
     if (KeyList[4].state == KEY_RELEASED && MenuState.onPageSwitching) {
       MenuState.onPageSwitching = false;
     }
-    if (KeyList[2].keyFlag && KeyList[2].state == KEY_PRESSED) { // 上移
+    if (KeyList[2].pressedEventPending) { // 上移
       // MenuState.modeChoose = 1;
       if (MenuState.isAnimating) {
         if (MenuState.target > MenuState.speedChoose) { // 正在下移
@@ -394,7 +406,7 @@ void Menu_StateUpdate() {
         }
       }
     }
-    if (KeyList[3].keyFlag && KeyList[3].state == KEY_PRESSED) { // 下移
+    if (KeyList[3].pressedEventPending) { // 下移
       // MenuState.modeChoose = 1;
       if (MenuState.isAnimating) {
         if (MenuState.target < MenuState.speedChoose) { // 正在上移
@@ -415,8 +427,7 @@ void Menu_StateUpdate() {
         }
       }
     }
-    if (!MenuState.onPageSwitching && KeyList[4].keyFlag &&
-      KeyList[4].state == KEY_PRESSED) {
+    if (!MenuState.onPageSwitching && KeyList[4].pressedEventPending) {
       MenuState.page = MENU_PAGE_NONE;
       MenuState.animationProcess = 0;
       MenuState.isActivate = false;
@@ -443,9 +454,7 @@ void Menu_StateUpdate() {
   default:
     break;
   }
-  for (uint8_t key = 0; key < 7; key++) {
-    KeyList[key].keyFlag = false;
-  }
+  Key_ConsumeAllEvents();
 }
 
 void Menu_Test() {

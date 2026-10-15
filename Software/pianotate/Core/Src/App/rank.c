@@ -21,7 +21,7 @@ static int8_t Rank_GetSongIndex(SongName songName) {
   if (songName == BADAPPLE) {
     return 0;
   }
-  if (songName == FISH) {
+  if (songName == BIG_FISH) {
     return 1;
   }
   return -1;

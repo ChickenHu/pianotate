@@ -2,9 +2,9 @@
 #include "timer.h"
 #include <stdint.h>
 
-#define PSC 7
+#define PSC 35
 
-typedef enum { BADAPPLE = 1, FISH = 2, NONE = 3 } SongName;
+typedef enum { BADAPPLE = 1, BIG_FISH = 2, IREMEMBER = 3, NONE = 4 } SongName;
 typedef struct {
   bool isPlaying;
   bool isPWMStart;
@@ -24,11 +24,15 @@ extern const ToneData_t ToneData;
 extern SoundChannel Channel1, Channel2;
 
 extern const uint8_t BadAppleData[];
-extern const uint8_t Fish[541];
+extern const uint8_t BigFishData[];
+extern const uint8_t BadAppleCover[];
+extern const uint8_t BigFishCover[];
+extern const uint8_t IRememberCover[];
 
 extern uint16_t Music_GetSongSize(SongName songName);
 extern uint16_t Music_GetSongBeat(SongName songName);
-extern uint8_t Music_GetSongNote(SongName songName, uint16_t index);
+extern uint8_t Music_GetSongNote(SongName songName, uint16_t index,
+                                 uint8_t channel);
 extern void Music_PlayNote(SoundChannel *channel, uint8_t note);
 extern void Music_StopNote(SoundChannel *channel);
 extern void Music_UpdateState();

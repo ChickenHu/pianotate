@@ -4,8 +4,8 @@
 #include <limits.h>
 #include <stdint.h>
 
-#define MENU_SONG_COVER_WIDTH 60u
-#define MENU_SONG_COVER_HEIGHT 60u
+#define MENU_SONG_COVER_WIDTH 64u
+#define MENU_SONG_COVER_HEIGHT 64u
 #define MENU_SONG_COVER_BYTES (MENU_SONG_COVER_WIDTH * 8u)
 
 typedef enum {
@@ -40,6 +40,6 @@ extern void Menu_DrawArrow(int16_t yAxis, int16_t xAxis,
 extern void Menu_DrawArrowByProcess(int16_t process, int16_t startY,
                                     int16_t endY, int16_t xAxis,
                                     OLED_HandleTypeDef *oled);
-/* bitmap uses 8 bytes per column; bit 0 is the top pixel. */
+/* Bitmap is page-major, with columns left-to-right; bit 0 is the page top. */
 extern bool Menu_SetSongCover(SongName songName, const uint8_t *bitmap,
                               uint16_t bitmapSize);

@@ -1,6 +1,7 @@
 #include "state.h"
 #include "key.h"
 #include "led.h"
+#include "mpu6050.h"
 #include "fourkeys.h"
 #include "menu.h"
 #include "oled.h"
@@ -10,10 +11,28 @@
 #include <stdint.h>
 
 void State_Update() {
+  static bool mpuTickInitialized = false;
+  static uint32_t lastMpuTick;
   static uint32_t lastMenuUpdate = 0;
   static uint32_t lastFrameUpdate = 0;
   static bool gameFramePending = false;
   static bool refreshOLED1Next = true;
+
+  if (!mpuTickInitialized) {
+    lastMpuTick = Timer;
+    mpuTickInitialized = true;
+  }
+  uint32_t mpuNow = Timer;
+  uint32_t sampleElapsed = mpuNow - lastMpuTick;
+  if (MPU6050_Ready && sampleElapsed >= 10u) {
+    lastMpuTick = mpuNow;
+    if (MPU6050_Read(&MPU6050_Device) == HAL_OK) {
+      uint16_t elapsedMs = sampleElapsed > 0xFFFFu
+                               ? 0xFFFFu
+                               : (uint16_t)sampleElapsed;
+      MPU6050_UpdateFlags(&MPU6050_Device, elapsedMs);
+    }
+  }
 
   // 所有状态机的状态更新都放在此处，统一维护
   Key_Update();
@@ -37,11 +56,11 @@ void State_Update() {
   if (!gameFramePending &&
       (uint32_t)(now - lastFrameUpdate) >= (uint32_t)FreshPeriod * 2u) {
     lastFrameUpdate = now;
-    bool gameWasActive = StartFlag;
+    bool fourKeysWasEnabled = StartFlag;
     Piano_Update();
     FourKeys_UpdateState();
     gameFramePending =
-        gameWasActive && OLED_PendingChanges(&OLED1);
+        fourKeysWasEnabled && OLED_PendingChanges(&OLED1);
   }
   bool oled1Pending = OLED_PendingChanges(&OLED1);
   bool oled2Pending = OLED_PendingChanges(&OLED2);

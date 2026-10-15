@@ -95,9 +95,7 @@ static void Piano_CompleteRecording(void) {
   Piano.isAnimating = false;
   Piano.animationProcess = 0;
   Piano.state = PIANO_STATE_REVIEW;
-  for (uint8_t key = 0; key < 7; key++) {
-    KeyList[key].keyFlag = false;
-  }
+  Key_ConsumeAllEvents();
 }
 
 static void Piano_StartNote(uint8_t key, uint16_t elapsed) {
@@ -152,21 +150,18 @@ static void Piano_UpdateRecording(void) {
       for (uint8_t voice = 0; voice < 2; voice++) {
         if (Piano.soundKey[voice] == (int8_t)key) {
           Piano_StopSound(voice, elapsed);
-          for (uint8_t t = 0; t < 7; t++) {
-            KeyList[t].checkFlag = false;
-          }
           break;
         }
       }
     }
-    KeyList[key].keyFlag = false;
+    Key_ConsumeEvent(key);
   }
 
   for (uint8_t key = 0; key < 7; key++) {
     if (KeyList[key].keyFlag && KeyList[key].state == KEY_PRESSED) {
       Piano_StartNote(key, elapsed);
     }
-    KeyList[key].keyFlag = false;
+    Key_ConsumeEvent(key);
   }
 }
 
@@ -199,9 +194,7 @@ static void Piano_UpdateReviewInput(void) {
                              Piano.durationMs);
     }
   }
-  for (uint8_t key = 0; key < 7; key++) {
-    KeyList[key].keyFlag = false;
-  }
+  Key_ConsumeAllEvents();
 }
 
 void Piano_Init(void) {

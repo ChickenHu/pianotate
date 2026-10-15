@@ -14,6 +14,7 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .pendingState = KEY_RELEASED,
         .keyFlag = false,
+        .pressedEventPending = false,
     },
     {
         .pendingSince = 0,
@@ -23,6 +24,7 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .pendingState = KEY_RELEASED,
         .keyFlag = false,
+        .pressedEventPending = false,
     },
     {
         .pendingSince = 0,
@@ -32,6 +34,7 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .pendingState = KEY_RELEASED,
         .keyFlag = false,
+        .pressedEventPending = false,
     },
     {
         .pendingSince = 0,
@@ -41,6 +44,7 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .pendingState = KEY_RELEASED,
         .keyFlag = false,
+        .pressedEventPending = false,
     },
     {
         .pendingSince = 0,
@@ -50,6 +54,7 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .pendingState = KEY_RELEASED,
         .keyFlag = false,
+        .pressedEventPending = false,
     },
     {
         .pendingSince = 0,
@@ -59,6 +64,7 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .pendingState = KEY_RELEASED,
         .keyFlag = false,
+        .pressedEventPending = false,
     },
     {
         .pendingSince = 0,
@@ -68,8 +74,28 @@ Key_HandleTypeDef KeyList[7] = {
         .state = KEY_RELEASED,
         .pendingState = KEY_RELEASED,
         .keyFlag = false,
+        .pressedEventPending = false,
     },
 };
+
+void Key_ConsumeEvent(uint8_t key)
+{
+    if (key >= 7)
+    {
+        return;
+    }
+
+    KeyList[key].keyFlag = false;
+    KeyList[key].pressedEventPending = false;
+}
+
+void Key_ConsumeAllEvents(void)
+{
+    for (uint8_t key = 0; key < 7; key++)
+    {
+        Key_ConsumeEvent(key);
+    }
+}
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -154,6 +180,10 @@ void Key_Update(void)
             {
                 KeyList[pin].state = KeyList[pin].pendingState;
                 KeyList[pin].keyFlag = true;
+                if (KeyList[pin].state == KEY_PRESSED)
+                {
+                    KeyList[pin].pressedEventPending = true;
+                }
             }
 
             KeyList[pin].checkFlag = false;

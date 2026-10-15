@@ -168,14 +168,51 @@ static void FourKeys_RecordPerfect(void) {
 static void FourKeys_DrawScore(void) {
   char scoreText[11];
   char comboText[11];
+  const uint8_t *cover = NULL;
   FourKeys_FormatNumber(Score.totalScore, scoreText);
   FourKeys_FormatNumber(Score.combo, comboText);
 
+  if (!PianoChartActive) {
+    switch (PlayingSongName) {
+    case BADAPPLE:
+      cover = BadAppleCover;
+      break;
+    case BIG_FISH:
+      cover = BigFishCover;
+      break;
+    case IREMEMBER:
+      cover = IRememberCover;
+      break;
+    default:
+      break;
+    }
+  }
+
   OLED_Clear(&OLED2);
-  Font_DrawText(&OLED2, 64, 0, "SCORE");
-  Font_DrawText(&OLED2, 64 + 36, 0, scoreText);
-  Font_DrawText(&OLED2, 64, 16, "COMBO");
-  Font_DrawText(&OLED2, 64 + 36, 16, comboText);
+  if (cover != NULL) {
+    for (uint8_t page = 0; page < MENU_SONG_COVER_HEIGHT / 8u; page++) {
+      for (uint8_t x = 0; x < MENU_SONG_COVER_WIDTH; x++) {
+        uint8_t column = cover[page * MENU_SONG_COVER_WIDTH + x];
+        for (uint8_t bit = 0; bit < 8u; bit++) {
+          if (column & (1u << bit)) {
+            OLED_DrawPixel(OLED2.FrameBufferPtr, x, page * 8u + bit);
+          }
+        }
+      }
+    }
+    Font_DrawText(&OLED2, 66, 0, "SCORE");
+    Font_DrawText(&OLED2, 66, 8, scoreText);
+    Font_DrawText(&OLED2, 66, 24, "COMBO");
+    Font_DrawText(&OLED2, 66, 32, comboText);
+  } else {
+    for (uint8_t panel = 0; panel < 2; panel++) {
+      uint8_t x = panel * 64u;
+      Font_DrawText(&OLED2, x, 0, "SCORE");
+      Font_DrawText(&OLED2, x, 8, scoreText);
+      Font_DrawText(&OLED2, x, 24, "COMBO");
+      Font_DrawText(&OLED2, x, 32, comboText);
+    }
+  }
   if (PianoChartActive) {
     Font_DrawText(&OLED2, 0, 48, "Improvisation");
   }
@@ -194,14 +231,13 @@ static const char *FourKeys_GetResultText(void) {
 static void FourKeys_DrawResult(void) {
   FourKeys_DrawScore();
   if (GameOverTextVisible) {
-    Font_DrawText(&OLED2, 64, 32, FourKeys_GetResultText());
+    Font_DrawText(&OLED2, PianoChartActive ? 0 : 63, 56,
+                  FourKeys_GetResultText());
   }
 }
 
 static void FourKeys_ClearKeyFlags(void) {
-  for (uint8_t key = 0; key < 7; key++) {
-    KeyList[key].keyFlag = false;
-  }
+  Key_ConsumeAllEvents();
 }
 
 static void FourKeys_Resume(void) {
@@ -239,11 +275,11 @@ void FourKeys_Init(int32_t speed, SongName songName) {
   GameOver = false;
   GameOverTextVisible = false;
   Speed = speed;
-  Beat = Music_GetSongBeat(songName == NONE ? FISH : songName);
+  Beat = Music_GetSongBeat(songName);
   PlayingSongName = songName;
   FourKeys_SetUI();
   uint8_t lane = 0;
-  Size = songName == NONE ? 8 : Music_GetSongSize(songName);
+  Size = Music_GetSongSize(songName);
   ZOffset = Beat * Size * Speed / FreshPeriod / 2;
   InitialZOffset = ZOffset;
   GameStartTick = Timer;
@@ -253,41 +289,31 @@ void FourKeys_Init(int32_t speed, SongName songName) {
   memset(NoteBuffer, 0, sizeof(NoteBuffer));
   Score = (Score_t){0};
   MusicStartFlag = false;
-  if (songName == NONE) {
-    NoteBuffer[0][0] = (Note){
-        .noteType = ROTATE,
-        .isChecked = false,
-        .startId = 4,
-        .endId = 4,
-        .rotateDirect = false,
-    };
-    KeySize[0] = 1;
-  } else {
-    for (int i = 0; i < Size; i++) {
-      // i增加，离Zoffset越来越远，越后被显示
-      NoteBuffer[lane][KeySize[lane]].startId = i;
-      NoteType_t noteType = NOTE;
-      while (i % 8 != 7 && i + 1 < Size &&
-             Music_GetSongNote(songName, i + 1) ==
-                 Music_GetSongNote(songName, i)) {
-        noteType = HOLD;
-        i++;
-      }
-      NoteBuffer[lane][KeySize[lane]].noteType = noteType;
-      NoteBuffer[lane][KeySize[lane]].endId = i;
-      NoteBuffer[lane][KeySize[lane]].rotateDirect = false;
-      KeySize[lane]++;
-      if (i % 8 == 7 && PRNG4() == 0) {
-        uint8_t rotateLane = PRNG4();
-        uint16_t rotateIndex = KeySize[rotateLane]++;
-        NoteBuffer[rotateLane][rotateIndex].noteType = ROTATE;
-        NoteBuffer[rotateLane][rotateIndex].isChecked = false;
-        NoteBuffer[rotateLane][rotateIndex].startId = i;
-        NoteBuffer[rotateLane][rotateIndex].endId = i;
-        NoteBuffer[rotateLane][rotateIndex].rotateDirect = false;
-      }
-      lane = PRNG4();
+
+  for (int i = 0; i < Size; i++) {
+    // i增加，离Zoffset越来越远，越后被显示
+    NoteBuffer[lane][KeySize[lane]].startId = i;
+    NoteType_t noteType = NOTE;
+    while (i % 8 != 7 && i + 1 < Size &&
+             Music_GetSongNote(songName, i + 1, 0) ==
+               Music_GetSongNote(songName, i, 0)) {
+      noteType = HOLD;
+      i++;
     }
+    NoteBuffer[lane][KeySize[lane]].noteType = noteType;
+    NoteBuffer[lane][KeySize[lane]].endId = i;
+    NoteBuffer[lane][KeySize[lane]].rotateDirect = false;
+    KeySize[lane]++;
+    if (i % 8 == 7 && PRNG4() == 0) {
+      uint8_t rotateLane = PRNG4();
+      uint16_t rotateIndex = KeySize[rotateLane]++;
+      NoteBuffer[rotateLane][rotateIndex].noteType = ROTATE;
+      NoteBuffer[rotateLane][rotateIndex].isChecked = false;
+      NoteBuffer[rotateLane][rotateIndex].startId = i;
+      NoteBuffer[rotateLane][rotateIndex].endId = i;
+      NoteBuffer[rotateLane][rotateIndex].rotateDirect = false;
+    }
+    lane = PRNG4();
   }
   StartFlag = true;
 }
@@ -415,22 +441,25 @@ static bool FourKeys_AllNotesJudged(void) {
 
 void FourKeys_JudgeInput(void) {
   if (!StartFlag) {
-    if (GameOver) {
-      for (uint8_t key = 0; key < 7; key++) {
-        if (KeyList[key].keyFlag && KeyList[key].state == KEY_PRESSED) {
-          GameOver = false;
-          Menu_ReturnToMode();
-          FourKeys_ClearKeyFlags();
-          return;
-        }
-      }
-    }
     return;
   }
 
+  if (GameOver) {
+    for (uint8_t key = 0; key < 7; key++) {
+      if (KeyList[key].pressedEventPending) {
+        GameOver = false;
+        StartFlag = false;
+        Menu_ReturnToMode();
+        FourKeys_ClearKeyFlags();
+        return;
+      }
+    }
+    FourKeys_ClearKeyFlags();
+    return;
+  }
   if (GamePaused) {
     for (uint8_t key = 2; key <= 4; key++) {
-      if (!KeyList[key].keyFlag || KeyList[key].state != KEY_PRESSED) {
+      if (!KeyList[key].pressedEventPending) {
         continue;
       }
 
@@ -456,7 +485,7 @@ void FourKeys_JudgeInput(void) {
   FourKeys_UpdatePianoPlayback();
 
   for (uint8_t key = 2; key <= 4; key++) {
-    if (KeyList[key].keyFlag && KeyList[key].state == KEY_PRESSED) {
+    if (KeyList[key].pressedEventPending) {
       GamePaused = true;
       PauseTick = Timer;
       Music_Pause();
@@ -474,9 +503,7 @@ void FourKeys_JudgeInput(void) {
   }
 
   if (FourKeys_AllNotesJudged()) {
-    for (uint8_t key = 0; key < 7; key++) {
-      KeyList[key].keyFlag = false;
-    }
+    Key_ConsumeAllEvents();
     return;
   }
 
@@ -532,9 +559,7 @@ void FourKeys_JudgeInput(void) {
     }
   }
 
-  for (uint8_t key = 0; key < 7; key++) {
-    KeyList[key].keyFlag = false;
-  }
+  Key_ConsumeAllEvents();
 
   for (uint8_t lane = 0; lane < 4; lane++) {
     while (JudgeNext[lane] < KeySize[lane]) {
@@ -576,28 +601,23 @@ void FourKeys_JudgeInput(void) {
 
 void FourKeys_UpdateState() {
   // Advance and draw the game frame.
-  if (!StartFlag) {
-    if (GameOver && (uint32_t)(Timer - GameOverBlinkTick) >= 500u) {
-      GameOverBlinkTick = Timer;
-      GameOverTextVisible = !GameOverTextVisible;
-      FourKeys_DrawResult();
-    }
+  if (GameOver && (uint32_t)(Timer - GameOverBlinkTick) >= 500u) {
+    GameOverBlinkTick = Timer;
+    GameOverTextVisible = !GameOverTextVisible;
+    FourKeys_DrawResult();
+  }
+  if (!StartFlag || GameOver) {
     for (uint8_t key = 0; key < 7; key++) {
-      if (KeyList[key].checkFlag && KeyList[key].state == KEY_PRESSED) {
+      if (KeyList[key].pressedEventPending) {
         MenuState.isActivate = true;
         MenuState.page = MENU_PAGE_MODE;
         OLED_SendCmd(&OLED1, 0xA4);
         OLED_Clear(&OLED1);
         OLED_FreshFrame(&OLED1);
-        for (uint8_t key = 0; key < 7; key++) {
-          KeyList[key].checkFlag = false;
-        }
         break;
       }
     }
-    for (uint8_t key = 0; key < 7; key++) {
-      KeyList[key].checkFlag = false;
-    }
+    FourKeys_ClearKeyFlags();
     return;
   }
   if (GamePaused) {
@@ -618,7 +638,6 @@ void FourKeys_UpdateState() {
     if (!PianoChartActive) {
       (void)Rank_RecordScore(PlayingSongName, Score.totalScore);
     }
-    StartFlag = false;
     MusicStartFlag = false;
     GameOver = true;
     GameOverTextVisible = true;
@@ -627,9 +646,7 @@ void FourKeys_UpdateState() {
     OLED_Clear(&OLED1);
     OLED_AddLayer(OLED1.FrameBufferPtr, UILayer);
     OLED_SendCmd(&OLED1, 0xA5);
-    for (uint8_t key = 0; key < 7; key++) {
-      KeyList[key].keyFlag = false;
-    }
+    Key_ConsumeAllEvents();
     return;
   }
   // ZOffset是显示区域最远处的Z轴坐标

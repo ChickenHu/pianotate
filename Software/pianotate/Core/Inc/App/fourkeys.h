@@ -27,7 +27,7 @@ typedef struct{
 extern int32_t ZOffset;
 extern int32_t Speed;
 extern uint8_t border[128][2];// [0] 上边界 [1] 下边界
-extern bool StartFlag;
+extern bool StartFlag; // FourKeys remains enabled while the result screen is shown.
 extern void FourKeys_Init(int32_t speed,SongName songName);
 extern void FourKeys_InitFromPiano(int32_t speed,
                                    const PianoRecordedNote_t *notes,

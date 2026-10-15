@@ -18,7 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "beeper.h"
+#include "fourkeys.h"
 #include "i2c.h"
+#include "stm32f1xx_hal.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -120,9 +123,9 @@ int main(void)
   }
   LED_BreathingStop();
   MenuState.page = MENU_PAGE_MODE;
+  Beeper_Start(&BEEPER1);
   /* USER CODE END 2 */
 
-  uint32_t last_mpu_tick = Timer;
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
@@ -130,20 +133,14 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     if (Flag1ms) {
-        Flag1ms = 0;
-        uint32_t now = Timer;
-        uint32_t sample_elapsed = now - last_mpu_tick;
-        if (MPU6050_Ready && sample_elapsed >= 10u) {
-          last_mpu_tick = now;
-          if (MPU6050_Read(&MPU6050_Device) == HAL_OK) {
-            uint16_t elapsed_ms = sample_elapsed > 0xFFFFu
-                                      ? 0xFFFFu
-                                      : (uint16_t)sample_elapsed;
-            MPU6050_UpdateFlags(&MPU6050_Device, elapsed_ms);
-          }
-        }
-      State_Update();
+      Flag1ms = 0;
+      // State_Update();
     }
+    static uint8_t note=0;
+    Beeper_Set(&BEEPER1, PSC, ToneData.words[note]);
+    HAL_Delay(1000);
+    note++;
+    note%=12*7;
   }
   /* USER CODE END 3 */
 }
