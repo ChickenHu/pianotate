@@ -18,14 +18,17 @@ const uint8_t BadAppleData[] = {
 const uint8_t BigFishData[] = {
 #embed "../../Inc/Data/big_fish.bin"
 };
+const uint8_t WorldExecuteData[] = {
+#embed "../../Inc/Data/world_execute.bin"
+};
 const uint8_t BadAppleCover[] = {
 #embed "../../Inc/Data/bad_apple_pic.bin"
 };
 const uint8_t BigFishCover[] = {
 #embed "../../Inc/Data/big_fish_pic.bin"
 };
-const uint8_t IRememberCover[] = {
-#embed "../../Inc/Data/I_remember_pic.bin"
+const uint8_t WorldExecuteCover[] = {
+#embed "../../Inc/Data/world_execute_pic.bin"
 };
 #define Tone (ToneData.words)
 
@@ -49,6 +52,8 @@ inline uint8_t Music_GetSongNote(SongName songName, uint16_t index,
     return BadAppleData[index * 2u + channel];
   case BIG_FISH:
     return BigFishData[index * 2u + channel];
+  case WOLRDEXECUTE:
+    return WorldExecuteData[index * 2u + channel];
   default:
     return 0;
   }
@@ -59,6 +64,8 @@ inline uint16_t Music_GetSongSize(SongName songName) {
     return sizeof(BadAppleData) / 2u;
   case BIG_FISH:
     return sizeof(BigFishData) / 2u;
+  case WOLRDEXECUTE:
+    return sizeof(WorldExecuteData) / 2u;
   default:
     return 0;
   }
@@ -69,6 +76,8 @@ inline uint16_t Music_GetSongBeat(SongName songName) {
     return 60 * 1000 / 140 / 2;
   case BIG_FISH:
     return 60 * 1000 / 140 / 2;
+  case WOLRDEXECUTE:
+    return 60 * 1000 / 120 / 2;
   default:
     return 0;
   }
@@ -150,9 +159,12 @@ inline void Music_UpdateState() {
         Channel1.nextNoteTime = 0;
         Channel1.songSize = 0;
       } else {
+        if(Channel1.songName==WOLRDEXECUTE){
+          Music_StopNote(&Channel1);
+        }
         Channel1.noteIndex++;
-        Music_PlayNote(&Channel1, Music_GetSongNote(
-                    Channel1.songName, Channel1.noteIndex, 0));
+        Music_PlayNote(&Channel1, Music_GetSongNote(Channel1.songName,
+                                                    Channel1.noteIndex, 0));
         Channel1.nextNoteTime += Music_GetSongBeat(Channel1.songName);
       }
     }
@@ -169,8 +181,8 @@ inline void Music_UpdateState() {
       } else {
         Channel2.noteIndex++;
         Music_StopNote(&Channel2);
-        Music_PlayNote(&Channel2, Music_GetSongNote(
-                    Channel2.songName, Channel2.noteIndex, 1));
+        Music_PlayNote(&Channel2, Music_GetSongNote(Channel2.songName,
+                                                    Channel2.noteIndex, 1));
         Channel2.nextNoteTime += Music_GetSongBeat(Channel2.songName);
       }
     }
@@ -199,8 +211,7 @@ void Music_Play(SongName songName) {
   Channel2.isPlaying = true;
   Channel2.noteIndex = 0;
   Channel2.nextNoteTime = Timer + beat;
-  Music_PlayNote(&Channel2,
-                 Music_GetSongNote(songName, Channel2.noteIndex, 1));
+  Music_PlayNote(&Channel2, Music_GetSongNote(songName, Channel2.noteIndex, 1));
   //   Beeper_Start(Channel1.beeper);
 }
 

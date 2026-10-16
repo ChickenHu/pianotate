@@ -1,11 +1,12 @@
 #include "rank.h"
+#include "music.h"
 #include "stm32f1xx_hal_flash.h"
 #include "stm32f1xx_hal_flash_ex.h"
 #include <string.h>
 
 #define RANK_MAGIC 0x504E4C42u
 #define RANK_VERSION 1u
-#define RANK_SONGS 2u
+#define RANK_SONGS 3u
 
 extern uint32_t _rank_flash_start;
 
@@ -24,6 +25,9 @@ static int8_t Rank_GetSongIndex(SongName songName) {
   if (songName == BIG_FISH) {
     return 1;
   }
+  if (songName == WOLRDEXECUTE) {
+    return 2;
+  }
   return -1;
 }
 
@@ -32,8 +36,7 @@ void Rank_Init(void) {
   RankRecord_t record;
   memcpy(&record, (const void *)(uintptr_t)address, sizeof(record));
 
-  if (record.magic != RANK_MAGIC ||
-      record.version != RANK_VERSION) {
+  if (record.magic != RANK_MAGIC || record.version != RANK_VERSION) {
     memset(Scores, 0, sizeof(Scores));
     return;
   }
@@ -89,17 +92,16 @@ bool Rank_RecordScore(SongName songName, uint32_t score) {
     const uint32_t *words = (const uint32_t *)&record;
     for (uint32_t index = 1; index < sizeof(record) / sizeof(uint32_t);
          index++) {
-      status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,
-                                 address + index * sizeof(uint32_t),
-                                 words[index]);
+      status =
+          HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,
+                            address + index * sizeof(uint32_t), words[index]);
       if (status != HAL_OK) {
         break;
       }
     }
   }
   if (status == HAL_OK) {
-    status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, address,
-                               RANK_MAGIC);
+    status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, address, RANK_MAGIC);
   }
   HAL_FLASH_Lock();
   return status == HAL_OK;

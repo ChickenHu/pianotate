@@ -180,8 +180,8 @@ static void FourKeys_DrawScore(void) {
     case BIG_FISH:
       cover = BigFishCover;
       break;
-    case IREMEMBER:
-      cover = IRememberCover;
+    case WOLRDEXECUTE:
+      cover = WorldExecuteCover;
       break;
     default:
       break;
@@ -205,13 +205,11 @@ static void FourKeys_DrawScore(void) {
     Font_DrawText(&OLED2, 66, 24, "COMBO");
     Font_DrawText(&OLED2, 66, 32, comboText);
   } else {
-    for (uint8_t panel = 0; panel < 2; panel++) {
-      uint8_t x = panel * 64u;
-      Font_DrawText(&OLED2, x, 0, "SCORE");
-      Font_DrawText(&OLED2, x, 8, scoreText);
-      Font_DrawText(&OLED2, x, 24, "COMBO");
-      Font_DrawText(&OLED2, x, 32, comboText);
-    }
+    uint8_t x = 64u;
+    Font_DrawText(&OLED2, x, 0, "SCORE");
+    Font_DrawText(&OLED2, x, 8, scoreText);
+    Font_DrawText(&OLED2, x, 24, "COMBO");
+    Font_DrawText(&OLED2, x, 32, comboText);
   }
   if (PianoChartActive) {
     Font_DrawText(&OLED2, 0, 48, "Improvisation");
@@ -236,9 +234,7 @@ static void FourKeys_DrawResult(void) {
   }
 }
 
-static void FourKeys_ClearKeyFlags(void) {
-  Key_ConsumeAllEvents();
-}
+static void FourKeys_ClearKeyFlags(void) { Key_ConsumeAllEvents(); }
 
 static void FourKeys_Resume(void) {
   uint32_t elapsed = PauseTick - GameStartTick;
@@ -295,7 +291,7 @@ void FourKeys_Init(int32_t speed, SongName songName) {
     NoteBuffer[lane][KeySize[lane]].startId = i;
     NoteType_t noteType = NOTE;
     while (i % 8 != 7 && i + 1 < Size &&
-             Music_GetSongNote(songName, i + 1, 0) ==
+           Music_GetSongNote(songName, i + 1, 0) ==
                Music_GetSongNote(songName, i, 0)) {
       noteType = HOLD;
       i++;
@@ -606,7 +602,10 @@ void FourKeys_UpdateState() {
     GameOverTextVisible = !GameOverTextVisible;
     FourKeys_DrawResult();
   }
-  if (!StartFlag || GameOver) {
+  if (!StartFlag) {
+    return;
+  }
+  if (GameOver) {
     for (uint8_t key = 0; key < 7; key++) {
       if (KeyList[key].pressedEventPending) {
         MenuState.isActivate = true;

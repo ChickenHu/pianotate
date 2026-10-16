@@ -8,7 +8,6 @@
 #include "oled.h"
 #include <stdint.h>
 
-
 static const uint8_t Piano_NoteMap[7] = {
     0x04, // C4
     0x24, // D4
@@ -49,7 +48,7 @@ static PianoContext_t Piano = {
     .soundKey = {-1, -1},
 };
 
-static const int16_t Piano_ReviewAnimationDelta = 16;
+static const int16_t delta = 32;
 
 static void Piano_StartAnimation(uint8_t target) {
   Piano.isAnimating = true;
@@ -235,7 +234,7 @@ void Piano_Update(void) {
   if (Piano.state == PIANO_STATE_REVIEW) {
     OLED_Clear(&OLED1);
     if (Piano.isAnimating) {
-      Piano.animationProcess += Piano_ReviewAnimationDelta;
+      Piano.animationProcess += delta;
       if (Piano.animationProcess > 256) {
         Piano.isAnimating = false;
         Piano.animationSelection = Piano.reviewAnimationTarget;

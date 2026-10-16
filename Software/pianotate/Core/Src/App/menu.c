@@ -35,7 +35,7 @@ void Menu_Init() {
   Rank_Init();
   Menu_SetSongCover(BADAPPLE, BadAppleCover, MENU_SONG_COVER_BYTES);
   Menu_SetSongCover(BIG_FISH, BigFishCover, MENU_SONG_COVER_BYTES);
-  Menu_SetSongCover(IREMEMBER, IRememberCover, MENU_SONG_COVER_BYTES);
+  Menu_SetSongCover(WOLRDEXECUTE, WorldExecuteCover, MENU_SONG_COVER_BYTES);
   MenuState = (MenuState_t){
       .isActivate = false,
       .page = MENU_PAGE_MODE,
@@ -71,7 +71,7 @@ void Menu_ReturnToMode() {
 
 bool Menu_SetSongCover(SongName songName, const uint8_t *bitmap,
                        uint16_t bitmapSize) {
-  if (songName < BADAPPLE || songName > IREMEMBER ||
+  if (songName < BADAPPLE || songName > WOLRDEXECUTE ||
   (bitmap != NULL && bitmapSize != MENU_SONG_COVER_BYTES)) {
     return false;
   }
@@ -100,8 +100,8 @@ static void Menu_DrawSongInfo(void) {
     songTitle = "Bad Apple!";
   } else if (songName == BIG_FISH) {
     songTitle = "Big Fish";
-  } else if (songName == IREMEMBER) {
-    songTitle = "I Remember";
+  } else if (songName == WOLRDEXECUTE) {
+    songTitle = "World.execute(me);";
   }
 
   OLED_Clear(&OLED2);
@@ -187,8 +187,8 @@ static void Menu_DrawModePage(void) {
   } else {
     Menu_DrawArrow((MenuState.modeChoose == 1 ? 8 : 48), 4, &OLED1);
   }
-  Font_DrawText(&OLED1, 32, 8, "Four Keys");
-  Font_DrawText(&OLED1, 32, 48, "Piano");
+  Font_DrawText(&OLED1, 24, 8, "Four Keys");
+  Font_DrawText(&OLED1, 24, 48, "Piano");
   OLED_Clear(&OLED2);
 }
 
@@ -209,9 +209,9 @@ static void Menu_DrawSongPage(void) {
   } else {
     Menu_DrawArrow(PageLayout3[MenuState.songChoose - 1], 4, &OLED1);
   }
-  Font_DrawText(&OLED1, 32, PageLayout3[0], "Bad Apple!");
-  Font_DrawText(&OLED1, 32, PageLayout3[1], "Big Fish");
-  Font_DrawText(&OLED1, 32, PageLayout3[2], "I Remember");
+  Font_DrawText(&OLED1, 24, PageLayout3[0], "Bad Apple!");
+  Font_DrawText(&OLED1, 24, PageLayout3[1], "Big Fish");
+  Font_DrawText(&OLED1, 24, PageLayout3[2], "World.execute(me);");
   Menu_DrawSongInfo();
 }
 
@@ -434,7 +434,7 @@ void Menu_StateUpdate() {
       int32_t speed = 0;
       switch (MenuState.speedChoose) {
       case 1: {
-        speed = 10;
+        speed = 8;
         break;
       }
       case 2: {
